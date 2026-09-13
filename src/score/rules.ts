@@ -33,17 +33,34 @@ const JWT_RE = /^ey[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;
 const WRITE_METHODS = new Set(["PUT", "PATCH", "DELETE", "POST"]);
 const VERSION_SEGMENT_RE = /^v\d+$/i;
 
+/** What a rule found: the human-readable reason, and (when there is one) the exact literal text responsible. */
+export interface RuleEvidence {
+  rationale: string;
+  matchedValue?: string;
+}
+
 /** One row of the rule table: a predicate that inspects an endpoint and optionally raises a {@link Finding}. */
 export interface Rule {
   id: string;
   label: string;
   severity: Severity;
-  /** Returns a human-readable rationale string if the rule fires, or `null` if it doesn't. */
-  evidence: (endpoint: EndpointRecord) => string | null;
+  /** Returns evidence if the rule fires, or `null` if it doesn't. */
+  evidence: (endpoint: EndpointRecord) => RuleEvidence | null;
 }
 
 function firstIdSegment(path: string, matches: (segment: string) => boolean): string | undefined {
   return path.split("/").find((segment) => segment.length > 0 && matches(segment));
+}
+
+function firstPathSegmentEvidence(
+  endpoint: EndpointRecord,
+  matches: (segment: string) => boolean,
+  rationale: (segment: string) => string,
+): RuleEvidence | null {
+  const example = endpoint.exampleUrls[0];
+  if (example === undefined) return null;
+  const segment = firstIdSegment(new URL(example).pathname, matches);
+  return segment === undefined ? null : { rationale: rationale(segment), matchedValue: segment };
 }
 
 export const RULES: Rule[] = [
@@ -51,40 +68,37 @@ export const RULES: Rule[] = [
     id: "idor-numeric-id",
     label: "Numeric ID in path",
     severity: "high",
-    evidence: (endpoint) => {
-      const example = endpoint.exampleUrls[0];
-      if (example === undefined) return null;
-      const segment = firstIdSegment(new URL(example).pathname, isNumericIdSegment);
-      return segment === undefined
-        ? null
-        : `Path segment '${segment}' looks like a sequential numeric ID -- try adjacent IDs`;
-    },
+    evidence: (endpoint) =>
+      firstPathSegmentEvidence(
+        endpoint,
+        isNumericIdSegment,
+        (segment) =>
+          `Path segment '${segment}' looks like a sequential numeric ID -- try adjacent IDs`,
+      ),
   },
   {
     id: "idor-uuid",
     label: "UUID in path",
     severity: "medium",
-    evidence: (endpoint) => {
-      const example = endpoint.exampleUrls[0];
-      if (example === undefined) return null;
-      const segment = firstIdSegment(new URL(example).pathname, isUuidSegment);
-      return segment === undefined
-        ? null
-        : `Path segment is a UUID (${segment}) -- check for enumerable/predictable values`;
-    },
+    evidence: (endpoint) =>
+      firstPathSegmentEvidence(
+        endpoint,
+        isUuidSegment,
+        (segment) =>
+          `Path segment is a UUID (${segment}) -- check for enumerable/predictable values`,
+      ),
   },
   {
     id: "idor-objectid-or-hash",
     label: "ObjectId/hash in path",
     severity: "medium",
-    evidence: (endpoint) => {
-      const example = endpoint.exampleUrls[0];
-      if (example === undefined) return null;
-      const segment = firstIdSegment(new URL(example).pathname, isObjectIdOrHashSegment);
-      return segment === undefined
-        ? null
-        : `Path segment '${segment}' looks like an ObjectId/hash-based ID -- candidate for enumeration`;
-    },
+    evidence: (endpoint) =>
+      firstPathSegmentEvidence(
+        endpoint,
+        isObjectIdOrHashSegment,
+        (segment) =>
+          `Path segment '${segment}' looks like an ObjectId/hash-based ID -- candidate for enumeration`,
+      ),
   },
   {
     id: "sensitive-path",
@@ -92,7 +106,12 @@ export const RULES: Rule[] = [
     severity: "high",
     evidence: (endpoint) => {
       const match = SENSITIVE_PATH_RE.exec(endpoint.templatedPath);
-      return match === null ? null : `Path contains '${match[0]}' -- likely internal/admin surface`;
+      return match === null
+        ? null
+        : {
+            rationale: `Path contains '${match[0]}' -- likely internal/admin surface`,
+            matchedValue: match[0],
+          };
     },
   },
   {
@@ -101,7 +120,7 @@ export const RULES: Rule[] = [
     severity: "medium",
     evidence: (endpoint) =>
       endpoint.hasAuthHeader
-        ? "Auth header present -- retest with a different/lower-privileged account"
+        ? { rationale: "Auth header present -- retest with a different/lower-privileged account" }
         : null,
   },
   {
@@ -112,7 +131,10 @@ export const RULES: Rule[] = [
       if (!WRITE_METHODS.has(endpoint.method.toUpperCase())) return null;
       const hasIdSegment = endpoint.templatedPath.split("/").includes("{id}");
       return hasIdSegment
-        ? `State-changing ${endpoint.method} targets an object by ID -- check ownership/role enforcement (BOLA/BFLA)`
+        ? {
+            rationale: `State-changing ${endpoint.method} targets an object by ID -- check ownership/role enforcement (BOLA/BFLA)`,
+            matchedValue: endpoint.method,
+          }
         : null;
     },
   },
@@ -124,7 +146,10 @@ export const RULES: Rule[] = [
       const hit = endpoint.bodyKeysSeen.find((key) => MASS_ASSIGNMENT_KEYS.has(key.toLowerCase()));
       return hit === undefined
         ? null
-        : `Body includes sensitive field '${hit}' -- check for mass assignment / BOPLA`;
+        : {
+            rationale: `Body includes sensitive field '${hit}' -- check for mass assignment / BOPLA`,
+            matchedValue: hit,
+          };
     },
   },
   {
@@ -133,7 +158,7 @@ export const RULES: Rule[] = [
     severity: "medium",
     evidence: (endpoint) =>
       endpoint.templatedPath.endsWith("/graphql")
-        ? "GraphQL endpoint -- check introspection exposure and field-level authz"
+        ? { rationale: "GraphQL endpoint -- check introspection exposure and field-level authz" }
         : null,
   },
   {
@@ -142,7 +167,7 @@ export const RULES: Rule[] = [
     severity: "low",
     evidence: (endpoint) =>
       endpoint.jwtObserved
-        ? "JWT-shaped token observed -- decode and check alg/claims/expiry"
+        ? { rationale: "JWT-shaped token observed -- decode and check alg/claims/expiry" }
         : null,
   },
   {
@@ -151,7 +176,7 @@ export const RULES: Rule[] = [
     severity: "high",
     evidence: (endpoint) =>
       endpoint.sources.includes("probe")
-        ? "Well-known API doc/introspection path responded -- review directly"
+        ? { rationale: "Well-known API doc/introspection path responded -- review directly" }
         : null,
   },
 ];

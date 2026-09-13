@@ -4,6 +4,7 @@
  * for exports and the probe.
  */
 
+import "../../assets/tailwind.css";
 import { getEndpoints, getRequestsByIds, getRequestsByTabId } from "../../src/capture/store.js";
 import type { EndpointRecord } from "../../src/capture/types.js";
 import type { RuntimeMessage } from "../../src/messaging.js";

@@ -36,12 +36,19 @@ export interface CapturedRequest {
   source: CaptureSource;
 }
 
-/** One heuristic flag raised against an {@link EndpointRecord}, with a human-readable reason. */
+/**
+ * One heuristic flag raised against an {@link EndpointRecord}, with a human-readable reason.
+ *
+ * `matchedValue`, when present, is the exact literal text (a path segment, a body field name, a
+ * path keyword) that caused the rule to fire -- structured data, not scraped from `rationale`'s
+ * prose, so the UI can highlight precisely what was flagged and why without guessing.
+ */
 export interface Finding {
   ruleId: string;
   label: string;
   rationale: string;
   severity: Severity;
+  matchedValue?: string | undefined;
 }
 
 /**

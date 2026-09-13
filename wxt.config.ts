@@ -1,8 +1,13 @@
-import { defineConfig } from "wxt";
+import tailwindcss from "@tailwindcss/vite";
+import { defineConfig, type WxtViteConfig } from "wxt";
 
 // See https://wxt.dev/api/config.html
 export default defineConfig({
   srcDir: ".",
+  // Default is the hidden ".output" -- there's no reason the folder you actually load unpacked
+  // into the browser needs to be a dotfile, so this keeps it a regular, visible directory.
+  outDir: "output",
+  vite: () => ({ plugins: [tailwindcss()] }) as WxtViteConfig,
   manifest: ({ browser }) => ({
     name: "API Discovery",
     description:
