@@ -31,6 +31,8 @@ function endpoint(overrides: Partial<EndpointRecord> = {}): EndpointRecord {
     hasAuthHeader: false,
     bodyKeysSeen: [],
     jwtObserved: false,
+    jwtAlgNone: false,
+    corsWildcardWithCredentials: false,
     findings: [],
     ...overrides,
   };

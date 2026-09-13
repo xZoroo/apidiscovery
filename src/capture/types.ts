@@ -42,6 +42,9 @@ export interface CapturedRequest {
  * `matchedValue`, when present, is the exact literal text (a path segment, a body field name, a
  * path keyword) that caused the rule to fire -- structured data, not scraped from `rationale`'s
  * prose, so the UI can highlight precisely what was flagged and why without guessing.
+ *
+ * `owaspCategory`, when present, ties the finding to an OWASP API Security Top 10 (2023) or
+ * OWASP Top 10 (2021) category, for grouping/filtering from a web-app-assessment perspective.
  */
 export interface Finding {
   ruleId: string;
@@ -49,6 +52,7 @@ export interface Finding {
   rationale: string;
   severity: Severity;
   matchedValue?: string | undefined;
+  owaspCategory?: string | undefined;
 }
 
 /**
@@ -70,6 +74,10 @@ export interface EndpointRecord {
   bodyKeysSeen: string[];
   /** True if any sample's headers or body contained a JWT-shaped (`xxx.yyy.zzz`) token. */
   jwtObserved: boolean;
+  /** True if a sample's JWT decoded to header `"alg":"none"` -- a server that accepts this trusts an unsigned token. */
+  jwtAlgNone: boolean;
+  /** True if a sample's response paired `Access-Control-Allow-Origin: *` with `Access-Control-Allow-Credentials: true`. */
+  corsWildcardWithCredentials: boolean;
   findings: Finding[];
 }
 

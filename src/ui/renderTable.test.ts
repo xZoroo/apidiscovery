@@ -21,6 +21,8 @@ function endpoint(findings: Finding[]): EndpointRecord {
     hasAuthHeader: false,
     bodyKeysSeen: [],
     jwtObserved: false,
+    jwtAlgNone: false,
+    corsWildcardWithCredentials: false,
     findings,
   };
 }
