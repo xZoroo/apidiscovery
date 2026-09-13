@@ -9,14 +9,15 @@ import { getEndpoints, getRequestsByIds, getRequestsByTabId } from "../../src/ca
 import type { EndpointRecord } from "../../src/capture/types.js";
 import type { RuntimeMessage } from "../../src/messaging.js";
 import { renderDetail, renderEndpointRows } from "../../src/ui/renderTable.js";
+import { sortEndpoints } from "../../src/ui/tableState.js";
 
 const rowsEl = document.querySelector<HTMLTableSectionElement>("#endpoint-rows")!;
 const detailEl = document.querySelector<HTMLElement>("#detail")!;
 const openDashboardEl = document.querySelector<HTMLButtonElement>("#open-dashboard")!;
 
-async function onSelectEndpoint(endpoint: EndpointRecord): Promise<void> {
+async function onSelectEndpoint(endpoint: EndpointRecord, focusRuleId?: string): Promise<void> {
   const requests = await getRequestsByIds(endpoint.sampleRequestIds);
-  renderDetail(detailEl, endpoint, requests);
+  renderDetail(detailEl, endpoint, requests, focusRuleId);
 }
 
 async function refresh(): Promise<void> {
@@ -29,8 +30,10 @@ async function refresh(): Promise<void> {
   const visible = allEndpoints.filter((endpoint) =>
     endpoint.sampleRequestIds.some((id) => tabRequestIds.has(id)),
   );
-  renderEndpointRows(rowsEl, visible, (endpoint) => {
-    void onSelectEndpoint(endpoint);
+  // Highest-risk first by default -- this panel has no sort-header UI (kept thin), but the
+  // reviewer's attention should still go to the riskiest endpoint on this tab first.
+  renderEndpointRows(rowsEl, sortEndpoints(visible, "risk", "desc"), (endpoint, focusRuleId) => {
+    void onSelectEndpoint(endpoint, focusRuleId);
   });
 }
 

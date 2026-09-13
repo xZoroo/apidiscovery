@@ -9,7 +9,12 @@
  */
 
 import { openDB, type DBSchema, type IDBPDatabase } from "idb";
-import { hasAuthHeaderName, looksLikeJwt } from "../score/rules.js";
+import {
+  findJwtCandidates,
+  hasAuthHeaderName,
+  hasCorsWildcardWithCredentials,
+  jwtHeaderAlg,
+} from "../score/rules.js";
 import { scoreEndpointInCatalog } from "../score/scorer.js";
 import { endpointKey, splitUrl, templatePath, truncateBody } from "./normalizer.js";
 import type { CapturedRequest, EndpointRecord, StoredSecret } from "./types.js";
@@ -65,19 +70,25 @@ function requestHasAuthHeader(request: CapturedRequest): boolean {
   return headers.some((h) => hasAuthHeaderName(h.name));
 }
 
-function jwtSubstringPresent(value: string): boolean {
-  const candidates = value.match(/[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g) ?? [];
-  return candidates.some((candidate) => looksLikeJwt(candidate));
-}
-
-function requestHasJwt(request: CapturedRequest): boolean {
+function requestJwtCandidates(request: CapturedRequest): string[] {
   const values = [
     ...(request.requestHeaders ?? []).map((h) => h.value),
     ...(request.responseHeaders ?? []).map((h) => h.value),
     request.requestBody,
     request.responseBody,
   ];
-  return values.some((value) => value !== undefined && jwtSubstringPresent(value));
+  return values.flatMap((value) => (value === undefined ? [] : findJwtCandidates(value)));
+}
+
+function requestHasJwt(request: CapturedRequest): boolean {
+  return requestJwtCandidates(request).length > 0;
+}
+
+/** True if any JWT-shaped token in the request decodes to a header with `"alg":"none"`. */
+function requestHasJwtAlgNone(request: CapturedRequest): boolean {
+  return requestJwtCandidates(request).some(
+    (token) => jwtHeaderAlg(token)?.toLowerCase() === "none",
+  );
 }
 
 function mergeEndpoint(
@@ -115,6 +126,10 @@ function mergeEndpoint(
     hasAuthHeader: (existing?.hasAuthHeader ?? false) || requestHasAuthHeader(request),
     bodyKeysSeen: mergedBodyKeys,
     jwtObserved: (existing?.jwtObserved ?? false) || requestHasJwt(request),
+    jwtAlgNone: (existing?.jwtAlgNone ?? false) || requestHasJwtAlgNone(request),
+    corsWildcardWithCredentials:
+      (existing?.corsWildcardWithCredentials ?? false) ||
+      hasCorsWildcardWithCredentials(request.responseHeaders),
     findings: existing?.findings ?? [],
   };
 }

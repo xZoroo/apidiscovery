@@ -109,6 +109,49 @@ describe("getRequestsByTabId", () => {
   });
 });
 
+describe("upsertCapture -- CORS and JWT alg=none detection", () => {
+  it("sets corsWildcardWithCredentials when the response pairs a wildcard origin with credentials", async () => {
+    await upsertCapture(
+      request({
+        responseHeaders: [
+          { name: "Access-Control-Allow-Origin", value: "*" },
+          { name: "Access-Control-Allow-Credentials", value: "true" },
+        ],
+      }),
+    );
+    const endpoint = await getEndpoint("GET api.example.com/users/{id}");
+    expect(endpoint?.corsWildcardWithCredentials).toBe(true);
+  });
+
+  it("leaves corsWildcardWithCredentials false for a same-origin CORS response", async () => {
+    await upsertCapture(
+      request({
+        responseHeaders: [{ name: "Access-Control-Allow-Origin", value: "https://example.com" }],
+      }),
+    );
+    const endpoint = await getEndpoint("GET api.example.com/users/{id}");
+    expect(endpoint?.corsWildcardWithCredentials).toBe(false);
+  });
+
+  it("sets jwtAlgNone when a captured JWT decodes to alg=none", async () => {
+    const noneAlgJwt = "eyJhbGciOiJub25lIn0.eyJzdWIiOiIxIn0.sig";
+    await upsertCapture(
+      request({ requestHeaders: [{ name: "Authorization", value: `Bearer ${noneAlgJwt}` }] }),
+    );
+    const endpoint = await getEndpoint("GET api.example.com/users/{id}");
+    expect(endpoint?.jwtAlgNone).toBe(true);
+  });
+
+  it("leaves jwtAlgNone false for a normally-signed JWT", async () => {
+    const hs256Jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.dGhpc2lzYXNpZ25hdHVyZQ";
+    await upsertCapture(
+      request({ requestHeaders: [{ name: "Authorization", value: `Bearer ${hs256Jwt}` }] }),
+    );
+    const endpoint = await getEndpoint("GET api.example.com/users/{id}");
+    expect(endpoint?.jwtAlgNone).toBe(false);
+  });
+});
+
 describe("upsertSecret / getSecrets", () => {
   function secret(overrides: Partial<Parameters<typeof upsertSecret>[0]> = {}) {
     return {

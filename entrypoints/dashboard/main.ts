@@ -1,6 +1,6 @@
 /**
  * Dashboard logic: reads the endpoint/secret catalog from IndexedDB directly (no round-trip
- * through the background service worker), renders the table, wires search/filter, the two
+ * through the background service worker), renders the table, wires search/sort/filter, the two
  * exports, "clear all", and the opt-in Active Probe section.
  */
 
@@ -25,6 +25,14 @@ import {
   renderSummary,
   summarize,
 } from "../../src/ui/renderTable.js";
+import {
+  distinctOwaspCategories,
+  matchesOwaspCategory,
+  matchesQuery,
+  sortEndpoints,
+  type SortDirection,
+  type SortKey,
+} from "../../src/ui/tableState.js";
 
 const els = {
   rows: document.querySelector<HTMLTableSectionElement>("#endpoint-rows")!,
@@ -34,6 +42,10 @@ const els = {
   search: document.querySelector<HTMLInputElement>("#search")!,
   methodFilter: document.querySelector<HTMLSelectElement>("#method-filter")!,
   severityFilter: document.querySelector<HTMLSelectElement>("#severity-filter")!,
+  owaspFilter: document.querySelector<HTMLSelectElement>("#owasp-filter")!,
+  clearFilters: document.querySelector<HTMLButtonElement>("#clear-filters")!,
+  resultCount: document.querySelector<HTMLElement>("#result-count")!,
+  sortHeaders: document.querySelectorAll<HTMLButtonElement>(".sort-header"),
   exportHar: document.querySelector<HTMLButtonElement>("#export-har")!,
   exportList: document.querySelector<HTMLButtonElement>("#export-list")!,
   clearAll: document.querySelector<HTMLButtonElement>("#clear-all")!,
@@ -43,50 +55,68 @@ const els = {
 };
 
 let allEndpoints: EndpointRecord[] = [];
+let sortKey: SortKey = "risk";
+let sortDirection: SortDirection = "desc";
 
 function matchesFilters(endpoint: EndpointRecord): boolean {
-  const query = els.search.value.trim().toLowerCase();
-  if (
-    query.length > 0 &&
-    !`${endpoint.host}${endpoint.templatedPath}`.toLowerCase().includes(query)
-  ) {
-    return false;
-  }
+  if (!matchesQuery(endpoint, els.search.value)) return false;
   const method = els.methodFilter.value;
   if (method.length > 0 && endpoint.method !== method) return false;
   const severity = els.severityFilter.value;
   if (severity.length > 0 && !endpoint.findings.some((f) => f.severity === severity)) return false;
+  if (!matchesOwaspCategory(endpoint, els.owaspFilter.value)) return false;
   return true;
 }
 
-async function onSelectEndpoint(endpoint: EndpointRecord): Promise<void> {
+function visibleEndpoints(): EndpointRecord[] {
+  return sortEndpoints(allEndpoints.filter(matchesFilters), sortKey, sortDirection);
+}
+
+async function onSelectEndpoint(endpoint: EndpointRecord, focusRuleId?: string): Promise<void> {
   const requests = await getRequestsByIds(endpoint.sampleRequestIds);
-  renderDetail(els.detail, endpoint, requests);
+  renderDetail(els.detail, endpoint, requests, focusRuleId);
+}
+
+function updateSortIndicators(): void {
+  for (const header of els.sortHeaders) {
+    const indicator = header.querySelector<HTMLElement>(".sort-indicator");
+    if (indicator === null) continue;
+    const isActive = header.dataset["sortKey"] === sortKey;
+    indicator.textContent = isActive ? (sortDirection === "asc" ? " ▲" : " ▼") : "";
+    header.classList.toggle("text-slate-900", isActive);
+    header.classList.toggle("dark:text-slate-100", isActive);
+  }
 }
 
 function renderTable(): void {
-  const visible = allEndpoints.filter(matchesFilters);
-  renderEndpointRows(els.rows, visible, (endpoint) => {
-    void onSelectEndpoint(endpoint);
+  const visible = visibleEndpoints();
+  renderEndpointRows(els.rows, visible, (endpoint, focusRuleId) => {
+    void onSelectEndpoint(endpoint, focusRuleId);
   });
+  els.resultCount.textContent = `Showing ${String(visible.length)} of ${String(allEndpoints.length)} endpoints`;
+  updateSortIndicators();
 }
 
-function populateMethodFilter(): void {
-  const methods = [...new Set(allEndpoints.map((e) => e.method))].sort();
-  const previousValue = els.methodFilter.value;
-  els.methodFilter.replaceChildren(
-    Object.assign(document.createElement("option"), { value: "", textContent: "All methods" }),
-    ...methods.map((method) =>
-      Object.assign(document.createElement("option"), { value: method, textContent: method }),
+function populateSelect(select: HTMLSelectElement, defaultLabel: string, values: string[]): void {
+  const previousValue = select.value;
+  select.replaceChildren(
+    Object.assign(document.createElement("option"), { value: "", textContent: defaultLabel }),
+    ...values.map((value) =>
+      Object.assign(document.createElement("option"), { value, textContent: value }),
     ),
   );
-  els.methodFilter.value = methods.includes(previousValue) ? previousValue : "";
+  select.value = values.includes(previousValue) ? previousValue : "";
 }
 
 async function refresh(): Promise<void> {
   allEndpoints = await getEndpoints();
   const secrets = await getSecrets();
-  populateMethodFilter();
+  populateSelect(
+    els.methodFilter,
+    "All methods",
+    [...new Set(allEndpoints.map((e) => e.method))].sort(),
+  );
+  populateSelect(els.owaspFilter, "All OWASP categories", distinctOwaspCategories(allEndpoints));
   renderTable();
   renderSecretRows(els.secretRows, secrets);
   renderSummary(els.summaryCards, summarize(allEndpoints, secrets));
@@ -110,14 +140,14 @@ function downloadText(filename: string, text: string): void {
 }
 
 async function exportHar(): Promise<void> {
-  const visible = allEndpoints.filter(matchesFilters);
+  const visible = visibleEndpoints();
   const requestIds = visible.flatMap((e) => e.sampleRequestIds);
   const requests = await getRequestsByIds(requestIds);
   downloadJson("api-discovery.har", buildHar(requests));
 }
 
 async function exportEndpointList(): Promise<void> {
-  const visible = allEndpoints.filter(matchesFilters);
+  const visible = visibleEndpoints();
   const lines = visible.map(toEndpointListLine);
 
   const requestIds = visible.flatMap((e) => e.sampleRequestIds);
@@ -173,10 +203,32 @@ function setUpProbeSection(): void {
   });
 }
 
+function clearFilters(): void {
+  els.search.value = "";
+  els.methodFilter.value = "";
+  els.severityFilter.value = "";
+  els.owaspFilter.value = "";
+  renderTable();
+}
+
+function setUpSortHeaders(): void {
+  for (const header of els.sortHeaders) {
+    header.addEventListener("click", () => {
+      const key = header.dataset["sortKey"] as SortKey | undefined;
+      if (key === undefined) return;
+      sortDirection = key === sortKey ? (sortDirection === "asc" ? "desc" : "asc") : "asc";
+      sortKey = key;
+      renderTable();
+    });
+  }
+}
+
 function setUpToolbar(): void {
   els.search.addEventListener("input", renderTable);
   els.methodFilter.addEventListener("change", renderTable);
   els.severityFilter.addEventListener("change", renderTable);
+  els.owaspFilter.addEventListener("change", renderTable);
+  els.clearFilters.addEventListener("click", clearFilters);
   els.exportHar.addEventListener("click", () => {
     void exportHar();
   });
@@ -197,6 +249,7 @@ function setUpLiveUpdates(): void {
 }
 
 setUpToolbar();
+setUpSortHeaders();
 setUpProbeSection();
 setUpLiveUpdates();
 void refresh();

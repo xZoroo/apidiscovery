@@ -28,36 +28,36 @@
 
       <section
         id="probe-section"
-        class="mb-6 rounded-lg border border-amber-300 bg-amber-50 p-4 dark:border-amber-500/40 dark:bg-amber-950/30"
+        class="mb-6 rounded-lg border border-risk-medium/40 bg-risk-medium/10 p-4 dark:border-risk-medium/40 dark:bg-risk-medium/15"
       >
-        <h2 class="text-sm font-semibold text-amber-900 dark:text-amber-200">
+        <h2 class="text-sm font-semibold text-risk-medium">
           Active probe (opt-in — sends requests to the target)
         </h2>
-        <p class="mt-1 text-xs text-amber-800 dark:text-amber-300">
+        <p class="mt-1 text-xs text-slate-600 dark:text-slate-300">
           Checks a fixed list of well-known API-doc paths against the current origin only. Only run
           this against systems you are authorized to test.
         </p>
         <div class="mt-3 flex flex-wrap items-center gap-3">
           <span
             id="probe-origin"
-            class="font-mono text-sm text-amber-900 dark:text-amber-200"
+            class="font-mono text-sm text-slate-700 dark:text-slate-300"
           ></span>
           <button
             id="probe-run"
-            class="rounded-md bg-amber-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-50"
+            class="rounded-md bg-risk-medium px-3 py-1.5 text-sm font-medium text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
           >
             Run probe
           </button>
-          <span id="probe-status" class="text-sm text-amber-800 dark:text-amber-300"></span>
+          <span id="probe-status" class="text-sm text-slate-600 dark:text-slate-300"></span>
         </div>
       </section>
 
-      <div class="mb-4 flex flex-wrap items-center gap-2">
+      <div class="mb-2 flex flex-wrap items-center gap-2">
         <input
           id="search"
           type="search"
-          placeholder="Search host or path…"
-          class="min-w-48 flex-1 rounded-md border border-slate-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-900"
+          placeholder="Search host, path, method, source, body field, or finding…"
+          class="min-w-64 flex-1 rounded-md border border-slate-300 px-3 py-1.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 dark:border-slate-700 dark:bg-slate-900"
         />
         <select
           id="method-filter"
@@ -74,18 +74,36 @@
           <option value="medium">Medium</option>
           <option value="low">Low</option>
         </select>
+        <select
+          id="owasp-filter"
+          class="rounded-md border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-900"
+        >
+          <option value="">All OWASP categories</option>
+        </select>
         <button
-          id="export-har"
+          id="clear-filters"
           class="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
         >
-          Export HAR
+          Clear filters
         </button>
-        <button
-          id="export-list"
-          class="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
-        >
-          Export endpoint list / curl
-        </button>
+      </div>
+
+      <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <p id="result-count" class="text-xs text-slate-500 dark:text-slate-400"></p>
+        <div class="flex gap-2">
+          <button
+            id="export-har"
+            class="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
+          >
+            Export HAR
+          </button>
+          <button
+            id="export-list"
+            class="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
+          >
+            Export endpoint list / curl
+          </button>
+        </div>
       </div>
 
       <div
@@ -97,12 +115,60 @@
               <tr
                 class="border-b border-slate-200 bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-400"
               >
-                <th class="px-3 py-2">Method</th>
-                <th class="px-3 py-2">Host</th>
-                <th class="px-3 py-2">Path</th>
-                <th class="px-3 py-2">Flags</th>
-                <th class="px-3 py-2">Seen</th>
-                <th class="px-3 py-2">Source</th>
+                <th class="px-3 py-2">
+                  <button
+                    type="button"
+                    data-sort-key="method"
+                    class="sort-header flex items-center gap-1"
+                  >
+                    Method<span class="sort-indicator"></span>
+                  </button>
+                </th>
+                <th class="px-3 py-2">
+                  <button
+                    type="button"
+                    data-sort-key="host"
+                    class="sort-header flex items-center gap-1"
+                  >
+                    Host<span class="sort-indicator"></span>
+                  </button>
+                </th>
+                <th class="px-3 py-2">
+                  <button
+                    type="button"
+                    data-sort-key="path"
+                    class="sort-header flex items-center gap-1"
+                  >
+                    Path<span class="sort-indicator"></span>
+                  </button>
+                </th>
+                <th class="px-3 py-2">
+                  <button
+                    type="button"
+                    data-sort-key="risk"
+                    class="sort-header flex items-center gap-1"
+                  >
+                    Flags<span class="sort-indicator"></span>
+                  </button>
+                </th>
+                <th class="px-3 py-2">
+                  <button
+                    type="button"
+                    data-sort-key="seen"
+                    class="sort-header flex items-center gap-1"
+                  >
+                    Seen<span class="sort-indicator"></span>
+                  </button>
+                </th>
+                <th class="px-3 py-2">
+                  <button
+                    type="button"
+                    data-sort-key="source"
+                    class="sort-header flex items-center gap-1"
+                  >
+                    Source<span class="sort-indicator"></span>
+                  </button>
+                </th>
               </tr>
             </thead>
             <tbody id="endpoint-rows"></tbody>

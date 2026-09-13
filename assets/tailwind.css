@@ -1,1 +1,30 @@
 @import "tailwindcss";
+
+/*
+ * A considered color system for a security-triage tool, not stock Tailwind swatches.
+ *
+ * Severity and HTTP method deliberately live in different hue families: reusing red for both
+ * "DELETE" and "high severity" is a common dashboard mistake that makes a red badge ambiguous at
+ * a glance. Severity stays in the red/amber/slate family; methods use blue/green/violet/magenta.
+ */
+@theme {
+  /* Interactive accent (links, buttons, focus rings) -- a deep teal, not the default indigo/blue. */
+  --color-brand-400: #4fd8cb;
+  --color-brand-500: #0e9c8f;
+  --color-brand-600: #0b7c72;
+
+  /* Risk severity -- the primary triage signal. */
+  --color-risk-high: #d63a47;
+  --color-risk-medium: #c9770d;
+  --color-risk-low: #5b6b85;
+
+  /* HTTP method accents -- a separate hue family from risk severity on purpose. */
+  --color-method-get: #2f6fdb;
+  --color-method-post: #1e8f6f;
+  --color-method-put: #6952c4;
+  --color-method-delete: #b0348a;
+
+  /* Highlighter for calling out the exact flagged text in place. */
+  --color-mark: #ffd84d;
+  --color-mark-ink: #3a2e00;
+}

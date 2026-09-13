@@ -4,11 +4,12 @@
  * comes straight from the site under test -- so this file only ever sets `textContent`, never
  * `innerHTML`, on anything derived from captured data.
  *
- * Styling uses Tailwind utility classes (see assets/tailwind.css); this file owns the DOM
- * structure and severity/method color mapping so the dashboard and devtools panel render
- * identically without duplicating markup.
+ * Styling uses Tailwind utility classes on top of the custom color tokens in
+ * assets/tailwind.css; this file owns the DOM structure and severity/method color mapping so the
+ * dashboard and devtools panel render identically without duplicating markup.
  */
 
+import { decodeJwtParts, findJwtCandidates } from "../score/rules.js";
 import { maxSeverity } from "../score/scorer.js";
 import type {
   CapturedRequest,
@@ -20,45 +21,39 @@ import type {
 } from "../capture/types.js";
 
 // ---------------------------------------------------------------------------
-// Color mapping -- one place that decides what "high/medium/low" and each HTTP
-// method look like, so row chips, detail callouts, and summary cards agree.
+// Color mapping -- severity and HTTP method deliberately live in different hue
+// families (see assets/tailwind.css) so a red DELETE badge is never mistaken
+// for a high-severity flag.
 // ---------------------------------------------------------------------------
 
-const SEVERITY_STYLES: Record<
-  Severity,
-  { badge: string; callout: string; icon: string; dot: string }
-> = {
+const SEVERITY_STYLES: Record<Severity, { badge: string; callout: string; icon: string }> = {
   high: {
     badge:
-      "bg-red-50 text-red-700 ring-1 ring-inset ring-red-600/20 dark:bg-red-950 dark:text-red-300 dark:ring-red-500/30",
-    callout: "border-red-500 bg-red-50 dark:bg-red-950/40 dark:border-red-500/60",
-    icon: "text-red-600 dark:text-red-400",
-    dot: "bg-red-500",
+      "bg-risk-high/10 text-risk-high ring-1 ring-inset ring-risk-high/25 dark:bg-risk-high/20",
+    callout: "border-risk-high bg-risk-high/5 dark:bg-risk-high/10",
+    icon: "text-risk-high",
   },
   medium: {
     badge:
-      "bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-600/20 dark:bg-amber-950 dark:text-amber-300 dark:ring-amber-500/30",
-    callout: "border-amber-500 bg-amber-50 dark:bg-amber-950/40 dark:border-amber-500/60",
-    icon: "text-amber-600 dark:text-amber-400",
-    dot: "bg-amber-500",
+      "bg-risk-medium/10 text-risk-medium ring-1 ring-inset ring-risk-medium/25 dark:bg-risk-medium/20",
+    callout: "border-risk-medium bg-risk-medium/5 dark:bg-risk-medium/10",
+    icon: "text-risk-medium",
   },
   low: {
-    badge:
-      "bg-slate-100 text-slate-600 ring-1 ring-inset ring-slate-500/20 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-400/20",
-    callout: "border-slate-400 bg-slate-50 dark:bg-slate-800/40 dark:border-slate-500/60",
-    icon: "text-slate-500 dark:text-slate-400",
-    dot: "bg-slate-400",
+    badge: "bg-risk-low/10 text-risk-low ring-1 ring-inset ring-risk-low/20 dark:bg-risk-low/20",
+    callout: "border-risk-low bg-risk-low/5 dark:bg-risk-low/10",
+    icon: "text-risk-low",
   },
 };
 
 const METHOD_STYLES: Record<string, string> = {
-  GET: "bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-600/20 dark:bg-blue-950 dark:text-blue-300 dark:ring-blue-500/30",
-  POST: "bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-600/20 dark:bg-emerald-950 dark:text-emerald-300 dark:ring-emerald-500/30",
-  PUT: "bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-600/20 dark:bg-amber-950 dark:text-amber-300 dark:ring-amber-500/30",
+  GET: "bg-method-get/10 text-method-get ring-1 ring-inset ring-method-get/25 dark:bg-method-get/20",
+  POST: "bg-method-post/10 text-method-post ring-1 ring-inset ring-method-post/25 dark:bg-method-post/20",
+  PUT: "bg-method-put/10 text-method-put ring-1 ring-inset ring-method-put/25 dark:bg-method-put/20",
   PATCH:
-    "bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-600/20 dark:bg-amber-950 dark:text-amber-300 dark:ring-amber-500/30",
+    "bg-method-put/10 text-method-put ring-1 ring-inset ring-method-put/25 dark:bg-method-put/20",
   DELETE:
-    "bg-red-50 text-red-700 ring-1 ring-inset ring-red-600/20 dark:bg-red-950 dark:text-red-300 dark:ring-red-500/30",
+    "bg-method-delete/10 text-method-delete ring-1 ring-inset ring-method-delete/25 dark:bg-method-delete/20",
 };
 const DEFAULT_METHOD_STYLE =
   "bg-slate-100 text-slate-600 ring-1 ring-inset ring-slate-500/20 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-400/20";
@@ -78,10 +73,9 @@ function severityIconPath(severity: Severity): string {
 
 function severityIcon(severity: Severity): SVGSVGElement {
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-  // Explicit width/height (not just the "size-4" Tailwind class) so the icon has a fixed
-  // intrinsic size no matter what: without it, an SVG with only a viewBox is a flex item with
-  // no constrained size, and the browser's default `align-items: stretch` blows it up to the
-  // row's full height.
+  // Explicit width/height (not just a Tailwind size class) so the icon has a fixed intrinsic
+  // size no matter what: an SVG with only a viewBox is a flex item with no constrained size, and
+  // the browser's default `align-items: stretch` would otherwise blow it up to the row's height.
   svg.setAttribute("width", "16");
   svg.setAttribute("height", "16");
   svg.setAttribute("viewBox", "0 0 24 24");
@@ -127,8 +121,7 @@ function appendHighlighted(container: HTMLElement, text: string, terms: string[]
   for (const part of parts) {
     if (uniqueTerms.includes(part)) {
       const mark = document.createElement("mark");
-      mark.className =
-        "rounded bg-yellow-200 px-0.5 font-semibold text-yellow-950 dark:bg-yellow-500/40 dark:text-yellow-100";
+      mark.className = "rounded bg-mark px-0.5 font-semibold text-mark-ink";
       mark.textContent = part;
       container.appendChild(mark);
     } else if (part.length > 0) {
@@ -149,26 +142,36 @@ function matchedValues(findings: Finding[]): string[] {
 // Endpoint table rows
 // ---------------------------------------------------------------------------
 
+/** Called when a row (or one of its flag chips) is clicked. `focusRuleId` is set only for a chip click. */
+export type SelectHandler = (endpoint: EndpointRecord, focusRuleId?: string) => void;
+
 function cell(className = ""): HTMLTableCellElement {
   const td = document.createElement("td");
   td.className = `px-3 py-2.5 align-top text-sm ${className}`;
   return td;
 }
 
-/** Distinct rule labels present in `findings`, most severe first -- what the row's chips show. */
-function distinctRuleChips(findings: Finding[]): { label: string; severity: Severity }[] {
+/** Distinct rules present in `findings` (by ruleId), most severe first -- what the row's chips show. */
+function distinctRuleChips(
+  findings: Finding[],
+): { ruleId: string; label: string; severity: Severity }[] {
   const order: Severity[] = ["high", "medium", "low"];
-  const seen = new Map<string, Severity>();
+  const seen = new Map<string, { ruleId: string; label: string; severity: Severity }>();
   for (const finding of findings) {
-    if (!seen.has(finding.label)) seen.set(finding.label, finding.severity);
+    if (!seen.has(finding.ruleId)) {
+      seen.set(finding.ruleId, {
+        ruleId: finding.ruleId,
+        label: finding.label,
+        severity: finding.severity,
+      });
+    }
   }
-  return [...seen.entries()]
-    .map(([label, severity]) => ({ label, severity }))
-    .sort((a, b) => order.indexOf(a.severity) - order.indexOf(b.severity));
+  return [...seen.values()].sort((a, b) => order.indexOf(a.severity) - order.indexOf(b.severity));
 }
 
-function buildFlagsCell(findings: Finding[]): HTMLTableCellElement {
+function buildFlagsCell(endpoint: EndpointRecord, onSelect: SelectHandler): HTMLTableCellElement {
   const td = cell();
+  const findings = endpoint.findings;
   if (findings.length === 0) {
     const span = document.createElement("span");
     span.className = "text-xs text-slate-400 dark:text-slate-500";
@@ -181,7 +184,13 @@ function buildFlagsCell(findings: Finding[]): HTMLTableCellElement {
   const chips = distinctRuleChips(findings);
   const MAX_VISIBLE = 3;
   for (const chip of chips.slice(0, MAX_VISIBLE)) {
-    wrap.appendChild(badge(chip.label, SEVERITY_STYLES[chip.severity].badge));
+    const chipEl = badge(chip.label, `cursor-pointer ${SEVERITY_STYLES[chip.severity].badge}`);
+    chipEl.title = "Click to jump to this finding";
+    chipEl.addEventListener("click", (event) => {
+      event.stopPropagation();
+      onSelect(endpoint, chip.ruleId);
+    });
+    wrap.appendChild(chipEl);
   }
   if (chips.length > MAX_VISIBLE) {
     wrap.appendChild(
@@ -201,10 +210,7 @@ function buildPathCell(endpoint: EndpointRecord): HTMLTableCellElement {
   return td;
 }
 
-function buildEndpointRow(
-  endpoint: EndpointRecord,
-  onSelect: (endpoint: EndpointRecord) => void,
-): HTMLTableRowElement {
+function buildEndpointRow(endpoint: EndpointRecord, onSelect: SelectHandler): HTMLTableRowElement {
   const row = document.createElement("tr");
   row.className =
     "cursor-pointer border-b border-slate-100 last:border-0 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/60";
@@ -232,7 +238,7 @@ function buildEndpointRow(
     methodCell,
     hostCell,
     buildPathCell(endpoint),
-    buildFlagsCell(endpoint.findings),
+    buildFlagsCell(endpoint, onSelect),
     seenCell,
     sourceCell,
   );
@@ -246,7 +252,7 @@ function buildEndpointRow(
 export function renderEndpointRows(
   tbody: HTMLTableSectionElement,
   endpoints: EndpointRecord[],
-  onSelect: (endpoint: EndpointRecord) => void,
+  onSelect: SelectHandler,
 ): void {
   if (endpoints.length === 0) {
     const row = document.createElement("tr");
@@ -254,7 +260,7 @@ export function renderEndpointRows(
     td.colSpan = 6;
     td.className = "px-3 py-10 text-center text-sm text-slate-400 dark:text-slate-500";
     td.textContent =
-      "No endpoints captured yet. Browse the target site to start building the catalog.";
+      "No endpoints match the current filters. Browse the target site, or clear filters, to see more.";
     row.appendChild(td);
     tbody.replaceChildren(row);
     return;
@@ -266,9 +272,18 @@ export function renderEndpointRows(
 // Detail view -- security findings as callout cards, then request/response.
 // ---------------------------------------------------------------------------
 
-function buildFindingCallout(finding: Finding): HTMLElement {
+function buildOwaspTag(category: string | undefined): HTMLElement | null {
+  if (category === undefined) return null;
+  return badge(category, "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400");
+}
+
+function buildFindingCallout(finding: Finding, focused: boolean): HTMLElement {
   const box = document.createElement("div");
-  box.className = `flex items-start gap-2 rounded-md border-l-4 p-3 ${SEVERITY_STYLES[finding.severity].callout}`;
+  box.dataset["ruleId"] = finding.ruleId;
+  const focusRing = focused
+    ? " ring-2 ring-brand-500 ring-offset-1 dark:ring-offset-slate-900"
+    : "";
+  box.className = `flex items-start gap-2 rounded-md border-l-4 p-3 ${SEVERITY_STYLES[finding.severity].callout}${focusRing}`;
 
   box.appendChild(severityIcon(finding.severity));
 
@@ -276,11 +291,13 @@ function buildFindingCallout(finding: Finding): HTMLElement {
   body.className = "min-w-0 flex-1";
 
   const heading = document.createElement("div");
-  heading.className = "flex items-center gap-2";
+  heading.className = "flex flex-wrap items-center gap-2";
   const label = document.createElement("span");
   label.className = "text-sm font-semibold text-slate-900 dark:text-slate-100";
   label.textContent = finding.label;
   heading.append(label, badge(finding.severity, SEVERITY_STYLES[finding.severity].badge));
+  const owaspTag = buildOwaspTag(finding.owaspCategory);
+  if (owaspTag !== null) heading.appendChild(owaspTag);
 
   const rationale = document.createElement("p");
   rationale.className = "mt-1 text-sm text-slate-600 dark:text-slate-300";
@@ -295,7 +312,10 @@ function buildFindingCallout(finding: Finding): HTMLElement {
   return box;
 }
 
-function buildFindingsSection(findings: Finding[]): HTMLElement | null {
+function buildFindingsSection(
+  findings: Finding[],
+  focusRuleId: string | undefined,
+): HTMLElement | null {
   if (findings.length === 0) return null;
   const section = document.createElement("div");
   section.className = "space-y-2";
@@ -304,7 +324,9 @@ function buildFindingsSection(findings: Finding[]): HTMLElement | null {
     "text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400";
   heading.textContent = `Security findings (${String(findings.length)})`;
   section.appendChild(heading);
-  for (const finding of findings) section.appendChild(buildFindingCallout(finding));
+  for (const finding of findings) {
+    section.appendChild(buildFindingCallout(finding, finding.ruleId === focusRuleId));
+  }
   return section;
 }
 
@@ -365,6 +387,15 @@ function buildExchangeBlock(
 }
 
 function buildRequestResponseBlock(request: CapturedRequest): HTMLElement {
+  const wrapper = document.createElement("div");
+  wrapper.className = "space-y-2";
+
+  const heading = document.createElement("h3");
+  heading.className =
+    "text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400";
+  heading.textContent = "Request & response";
+  wrapper.appendChild(heading);
+
   const grid = document.createElement("div");
   grid.className = "grid grid-cols-1 gap-4 sm:grid-cols-2";
   grid.append(
@@ -377,17 +408,85 @@ function buildRequestResponseBlock(request: CapturedRequest): HTMLElement {
       request.responseBody,
     ),
   );
-  return grid;
+  wrapper.appendChild(grid);
+  return wrapper;
+}
+
+// ---------------------------------------------------------------------------
+// JWT decode -- a manual-testing helper: find the first JWT in the sample
+// requests and decode it locally (no signature verification -- this is a
+// recon aid, not a validator).
+// ---------------------------------------------------------------------------
+
+function extractFirstJwt(requests: CapturedRequest[]): string | undefined {
+  for (const request of requests) {
+    const texts = [
+      ...(request.requestHeaders ?? []).map((h) => h.value),
+      ...(request.responseHeaders ?? []).map((h) => h.value),
+      request.requestBody,
+      request.responseBody,
+    ];
+    for (const text of texts) {
+      if (text === undefined) continue;
+      const [first] = findJwtCandidates(text);
+      if (first !== undefined) return first;
+    }
+  }
+  return undefined;
+}
+
+function jwtAlg(header: unknown): string | undefined {
+  if (typeof header !== "object" || header === null) return undefined;
+  const alg = (header as Record<string, unknown>)["alg"];
+  return typeof alg === "string" ? alg : undefined;
+}
+
+function buildJwtSection(sampleRequests: CapturedRequest[]): HTMLElement | null {
+  const token = extractFirstJwt(sampleRequests);
+  if (token === undefined) return null;
+
+  const section = document.createElement("div");
+  const heading = document.createElement("h3");
+  heading.className =
+    "text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400";
+  heading.textContent = "Decoded JWT";
+  section.appendChild(heading);
+
+  const decoded = decodeJwtParts(token);
+  if (decoded === null) {
+    const p = document.createElement("p");
+    p.className = "mt-1 text-xs text-slate-400 dark:text-slate-500";
+    p.textContent = "Found a JWT-shaped token but could not decode it.";
+    section.appendChild(p);
+    return section;
+  }
+
+  const alg = jwtAlg(decoded.header);
+  if (alg?.toLowerCase() === "none") {
+    const warning = document.createElement("p");
+    warning.className = "mt-1 text-xs font-semibold text-risk-high";
+    warning.textContent = 'alg is "none" -- test whether the server accepts an unsigned token.';
+    section.appendChild(warning);
+  }
+
+  const pre = document.createElement("pre");
+  pre.className =
+    "mt-2 max-h-40 overflow-auto rounded-md bg-slate-900 p-3 text-xs text-slate-100 dark:bg-black";
+  pre.textContent = JSON.stringify({ header: decoded.header, payload: decoded.payload }, null, 2);
+  section.appendChild(pre);
+  return section;
 }
 
 /**
  * Renders the expanded detail view for one endpoint: example URLs, its findings as callout
- * cards, and one representative request/response (the most recently captured sample, if any).
+ * cards (the one matching `focusRuleId` gets a highlight ring and is scrolled into view), a
+ * decoded-JWT helper when a token was observed, and one representative request/response.
  */
 export function renderDetail(
   container: HTMLElement,
   endpoint: EndpointRecord,
   sampleRequests: CapturedRequest[],
+  focusRuleId?: string,
 ): void {
   container.replaceChildren();
   container.className =
@@ -416,11 +515,19 @@ export function renderDetail(
   }
   container.appendChild(urlList);
 
-  const findingsSection = buildFindingsSection(endpoint.findings);
+  const findingsSection = buildFindingsSection(endpoint.findings, focusRuleId);
   if (findingsSection !== null) container.appendChild(findingsSection);
+
+  const jwtSection = buildJwtSection(sampleRequests);
+  if (jwtSection !== null) container.appendChild(jwtSection);
 
   const sample = sampleRequests.at(-1);
   if (sample !== undefined) container.appendChild(buildRequestResponseBlock(sample));
+
+  if (focusRuleId !== undefined) {
+    const focused = container.querySelector(`[data-rule-id="${focusRuleId}"]`);
+    focused?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -502,10 +609,10 @@ function buildStatCard(label: string, value: number, accentClass: string): HTMLE
 /** Renders the KPI summary cards row into `container`, replacing any existing content. */
 export function renderSummary(container: HTMLElement, summary: CatalogSummary): void {
   container.replaceChildren(
-    buildStatCard("Endpoints", summary.total, "text-slate-900 dark:text-slate-100"),
-    buildStatCard("High severity", summary.high, "text-red-600 dark:text-red-400"),
-    buildStatCard("Medium severity", summary.medium, "text-amber-600 dark:text-amber-400"),
-    buildStatCard("Low severity", summary.low, "text-slate-500 dark:text-slate-400"),
-    buildStatCard("Secrets found", summary.secrets, "text-red-600 dark:text-red-400"),
+    buildStatCard("Endpoints", summary.total, "text-brand-600 dark:text-brand-400"),
+    buildStatCard("High severity", summary.high, "text-risk-high"),
+    buildStatCard("Medium severity", summary.medium, "text-risk-medium"),
+    buildStatCard("Low severity", summary.low, "text-risk-low"),
+    buildStatCard("Secrets found", summary.secrets, "text-risk-high"),
   );
 }

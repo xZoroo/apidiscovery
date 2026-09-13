@@ -17,6 +17,8 @@ function endpoint(overrides: Partial<EndpointRecord> = {}): EndpointRecord {
     hasAuthHeader: false,
     bodyKeysSeen: [],
     jwtObserved: false,
+    jwtAlgNone: false,
+    corsWildcardWithCredentials: false,
     findings: [],
     ...overrides,
   };
@@ -126,6 +128,34 @@ describe("scoreEndpoint", () => {
       }),
     );
   });
+
+  it("jwt-alg-none: flags an endpoint whose captured JWT decoded to alg=none", () => {
+    const findings = scoreEndpoint(endpoint({ jwtAlgNone: true }));
+    expect(findings).toContainEqual(
+      expect.objectContaining({ ruleId: "jwt-alg-none", severity: "high", matchedValue: "none" }),
+    );
+  });
+
+  it("cors-wildcard-credentials: flags a wildcard-origin-plus-credentials response", () => {
+    const findings = scoreEndpoint(endpoint({ corsWildcardWithCredentials: true }));
+    expect(findings).toContainEqual(
+      expect.objectContaining({ ruleId: "cors-wildcard-credentials", severity: "high" }),
+    );
+  });
+
+  it("every rule attaches an OWASP API Security Top 10 category to its finding", () => {
+    const findings = scoreEndpoint(
+      endpoint({
+        exampleUrls: ["https://api.example.com/users/42"],
+        hasAuthHeader: true,
+        jwtObserved: true,
+      }),
+    );
+    expect(findings.length).toBeGreaterThan(0);
+    for (const finding of findings) {
+      expect(finding.owaspCategory).toMatch(/^API\d{1,2}:2023/);
+    }
+  });
 });
 
 describe("scoreEndpointInCatalog", () => {
@@ -148,6 +178,41 @@ describe("scoreEndpointInCatalog", () => {
     const target = endpoint({ templatedPath: "/users" });
     const findings = scoreEndpointInCatalog(target, [target]);
     expect(findings.some((f) => f.ruleId === "shadow-unversioned-api")).toBe(false);
+  });
+
+  it("adds inconsistent-auth when a sibling method on the same path has an auth header", () => {
+    const unauthed = endpoint({
+      key: "DELETE api.example.com/admin/users/{id}",
+      method: "DELETE",
+      templatedPath: "/admin/users/{id}",
+      hasAuthHeader: false,
+    });
+    const authed = endpoint({
+      key: "GET api.example.com/admin/users/{id}",
+      method: "GET",
+      templatedPath: "/admin/users/{id}",
+      hasAuthHeader: true,
+    });
+    const findings = scoreEndpointInCatalog(unauthed, [unauthed, authed]);
+    expect(findings).toContainEqual(
+      expect.objectContaining({
+        ruleId: "inconsistent-auth",
+        severity: "high",
+        matchedValue: "DELETE",
+      }),
+    );
+  });
+
+  it("does not add inconsistent-auth when the endpoint itself has an auth header", () => {
+    const target = endpoint({ hasAuthHeader: true });
+    const findings = scoreEndpointInCatalog(target, [target]);
+    expect(findings.some((f) => f.ruleId === "inconsistent-auth")).toBe(false);
+  });
+
+  it("does not add inconsistent-auth when no sibling on the same path is authed", () => {
+    const target = endpoint({ hasAuthHeader: false });
+    const findings = scoreEndpointInCatalog(target, [target]);
+    expect(findings.some((f) => f.ruleId === "inconsistent-auth")).toBe(false);
   });
 });
 

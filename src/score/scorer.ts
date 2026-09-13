@@ -1,7 +1,7 @@
-/** Runs the {@link RULES} table (plus the cross-endpoint shadow-version check) against endpoints. */
+/** Runs the {@link RULES} table (plus the cross-endpoint checks) against endpoints. */
 
 import type { EndpointRecord, Finding } from "../capture/types.js";
-import { RULES, shadowUnversionedFinding } from "./rules.js";
+import { inconsistentAuthFinding, RULES, shadowUnversionedFinding } from "./rules.js";
 
 /** Scores a single endpoint in isolation (used when `allEndpoints` isn't available/needed). */
 export function scoreEndpoint(endpoint: EndpointRecord): Finding[] {
@@ -14,6 +14,7 @@ export function scoreEndpoint(endpoint: EndpointRecord): Finding[] {
         label: rule.label,
         rationale: evidence.rationale,
         severity: rule.severity,
+        owaspCategory: rule.owaspCategory,
         ...(evidence.matchedValue !== undefined ? { matchedValue: evidence.matchedValue } : {}),
       });
     }
@@ -22,9 +23,9 @@ export function scoreEndpoint(endpoint: EndpointRecord): Finding[] {
 }
 
 /**
- * Scores an endpoint against the full catalog, adding the cross-endpoint
- * `shadow-unversioned-api` finding when applicable. This is what {@link store} should call on
- * every upsert, since the shadow-version check needs to see sibling endpoints.
+ * Scores an endpoint against the full catalog, adding the cross-endpoint `shadow-unversioned-api`
+ * and `inconsistent-auth` findings when applicable. This is what {@link store} should call on
+ * every upsert, since these checks need to see sibling endpoints.
  */
 export function scoreEndpointInCatalog(
   endpoint: EndpointRecord,
@@ -33,6 +34,8 @@ export function scoreEndpointInCatalog(
   const findings = scoreEndpoint(endpoint);
   const shadow = shadowUnversionedFinding(endpoint, allEndpoints);
   if (shadow !== null) findings.push(shadow);
+  const inconsistentAuth = inconsistentAuthFinding(endpoint, allEndpoints);
+  if (inconsistentAuth !== null) findings.push(inconsistentAuth);
   return findings;
 }
 
