@@ -1,0 +1,15 @@
+{
+  "extends": "./.wxt/tsconfig.json",
+  "compilerOptions": {
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitOverride": true,
+    "noPropertyAccessFromIndexSignature": true,
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "types": ["chrome"]
+  },
+  "include": ["**/*.ts", "wxt.config.ts", ".wxt/wxt.d.ts"],
+  "exclude": ["node_modules", ".output"]
+}

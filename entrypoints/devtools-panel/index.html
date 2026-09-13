@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>API Discovery</title>
+    <style>
+      body {
+        font-family:
+          system-ui,
+          -apple-system,
+          sans-serif;
+        margin: 0;
+        padding: 8px;
+        font-size: 12px;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      th,
+      td {
+        border-bottom: 1px solid #d0d0d0;
+        text-align: left;
+        padding: 4px 6px;
+        vertical-align: top;
+      }
+      tr.endpoint-row {
+        cursor: pointer;
+      }
+      tr.endpoint-row:hover {
+        background: #f5f5f5;
+      }
+      .badge {
+        display: inline-block;
+        padding: 1px 6px;
+        border-radius: 3px;
+        font-size: 11px;
+        color: white;
+      }
+      .badge.high {
+        background: #c0392b;
+      }
+      .badge.medium {
+        background: #d68910;
+      }
+      .badge.low {
+        background: #7f8c8d;
+      }
+      pre {
+        white-space: pre-wrap;
+        word-break: break-all;
+        background: #f5f5f5;
+        padding: 6px;
+        max-height: 180px;
+        overflow: auto;
+      }
+      #open-dashboard {
+        margin-bottom: 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <button id="open-dashboard">Open full dashboard</button>
+    <table>
+      <thead>
+        <tr>
+          <th>Method</th>
+          <th>Host</th>
+          <th>Path</th>
+          <th>Flags</th>
+          <th>Seen</th>
+          <th>Source</th>
+        </tr>
+      </thead>
+      <tbody id="endpoint-rows"></tbody>
+    </table>
+    <div id="detail"></div>
+
+    <script type="module" src="./panel.ts"></script>
+  </body>
+</html>

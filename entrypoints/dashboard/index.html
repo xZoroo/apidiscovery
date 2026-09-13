@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>API Discovery Dashboard</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --border: #d0d0d0;
+        --bg-alt: #f5f5f5;
+        --high: #c0392b;
+        --medium: #d68910;
+        --low: #7f8c8d;
+      }
+      body {
+        font-family:
+          system-ui,
+          -apple-system,
+          sans-serif;
+        margin: 0;
+        padding: 16px;
+      }
+      h1 {
+        font-size: 18px;
+      }
+      #toolbar {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        align-items: center;
+        margin-bottom: 12px;
+      }
+      #toolbar input[type="search"] {
+        flex: 1;
+        min-width: 160px;
+        padding: 6px 8px;
+      }
+      button {
+        padding: 6px 10px;
+        cursor: pointer;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+      }
+      th,
+      td {
+        border-bottom: 1px solid var(--border);
+        text-align: left;
+        padding: 6px 8px;
+        vertical-align: top;
+      }
+      th {
+        background: var(--bg-alt);
+        position: sticky;
+        top: 0;
+      }
+      tr.endpoint-row {
+        cursor: pointer;
+      }
+      tr.endpoint-row:hover {
+        background: var(--bg-alt);
+      }
+      .badge {
+        display: inline-block;
+        padding: 1px 6px;
+        border-radius: 3px;
+        font-size: 11px;
+        margin-right: 4px;
+        color: white;
+      }
+      .badge.high {
+        background: var(--high);
+      }
+      .badge.medium {
+        background: var(--medium);
+      }
+      .badge.low {
+        background: var(--low);
+      }
+      .badge.source {
+        background: #555;
+      }
+      pre {
+        white-space: pre-wrap;
+        word-break: break-all;
+        background: var(--bg-alt);
+        padding: 8px;
+        max-height: 240px;
+        overflow: auto;
+      }
+      #detail {
+        margin-top: 8px;
+      }
+      #probe-section {
+        border: 1px solid var(--border);
+        padding: 10px;
+        margin-bottom: 16px;
+      }
+      #probe-section h2 {
+        font-size: 14px;
+        margin: 0 0 6px;
+      }
+      #probe-note {
+        font-size: 12px;
+        color: var(--low);
+      }
+      #secrets-section h2 {
+        font-size: 14px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>API Discovery Dashboard</h1>
+
+    <section id="probe-section">
+      <h2>Active Probe (opt-in)</h2>
+      <p id="probe-note">
+        Checks a fixed list of well-known API-doc paths against the current origin only. Only run
+        this against systems you are authorized to test.
+      </p>
+      <div>
+        <span id="probe-origin"></span>
+        <button id="probe-run">Run probe</button>
+        <span id="probe-status"></span>
+      </div>
+    </section>
+
+    <div id="toolbar">
+      <input id="search" type="search" placeholder="Search host or path..." />
+      <select id="method-filter">
+        <option value="">All methods</option>
+      </select>
+      <select id="severity-filter">
+        <option value="">All severities</option>
+        <option value="high">High</option>
+        <option value="medium">Medium</option>
+        <option value="low">Low</option>
+      </select>
+      <button id="export-har">Export HAR</button>
+      <button id="export-list">Export endpoint list / curl</button>
+      <button id="clear-all">Clear all data</button>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Method</th>
+          <th>Host</th>
+          <th>Path</th>
+          <th>Flags</th>
+          <th>Seen</th>
+          <th>Source</th>
+        </tr>
+      </thead>
+      <tbody id="endpoint-rows"></tbody>
+    </table>
+    <div id="detail"></div>
+
+    <section id="secrets-section">
+      <h2>Secrets found in JavaScript</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Label</th>
+            <th>Match</th>
+            <th>Source file</th>
+          </tr>
+        </thead>
+        <tbody id="secret-rows"></tbody>
+      </table>
+    </section>
+
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>
