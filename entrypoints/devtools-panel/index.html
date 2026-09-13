@@ -3,78 +3,39 @@
   <head>
     <meta charset="UTF-8" />
     <title>API Discovery</title>
-    <style>
-      body {
-        font-family:
-          system-ui,
-          -apple-system,
-          sans-serif;
-        margin: 0;
-        padding: 8px;
-        font-size: 12px;
-      }
-      table {
-        width: 100%;
-        border-collapse: collapse;
-      }
-      th,
-      td {
-        border-bottom: 1px solid #d0d0d0;
-        text-align: left;
-        padding: 4px 6px;
-        vertical-align: top;
-      }
-      tr.endpoint-row {
-        cursor: pointer;
-      }
-      tr.endpoint-row:hover {
-        background: #f5f5f5;
-      }
-      .badge {
-        display: inline-block;
-        padding: 1px 6px;
-        border-radius: 3px;
-        font-size: 11px;
-        color: white;
-      }
-      .badge.high {
-        background: #c0392b;
-      }
-      .badge.medium {
-        background: #d68910;
-      }
-      .badge.low {
-        background: #7f8c8d;
-      }
-      pre {
-        white-space: pre-wrap;
-        word-break: break-all;
-        background: #f5f5f5;
-        padding: 6px;
-        max-height: 180px;
-        overflow: auto;
-      }
-      #open-dashboard {
-        margin-bottom: 8px;
-      }
-    </style>
   </head>
-  <body>
-    <button id="open-dashboard">Open full dashboard</button>
-    <table>
-      <thead>
-        <tr>
-          <th>Method</th>
-          <th>Host</th>
-          <th>Path</th>
-          <th>Flags</th>
-          <th>Seen</th>
-          <th>Source</th>
-        </tr>
-      </thead>
-      <tbody id="endpoint-rows"></tbody>
-    </table>
-    <div id="detail"></div>
+  <body class="bg-slate-50 p-3 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
+    <div class="mb-3 flex items-center justify-between">
+      <h1 class="text-sm font-semibold">API Discovery</h1>
+      <button
+        id="open-dashboard"
+        class="rounded-md border border-slate-300 px-2 py-1 text-xs font-medium hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
+      >
+        Open full dashboard
+      </button>
+    </div>
+    <div
+      class="overflow-hidden rounded-lg border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900"
+    >
+      <div class="overflow-x-auto">
+        <table class="w-full border-collapse text-xs">
+          <thead>
+            <tr
+              class="border-b border-slate-200 bg-slate-50 text-left font-semibold uppercase tracking-wide text-slate-500 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-400"
+            >
+              <th class="px-2 py-1.5">Method</th>
+              <th class="px-2 py-1.5">Host</th>
+              <th class="px-2 py-1.5">Path</th>
+              <th class="px-2 py-1.5">Flags</th>
+              <th class="px-2 py-1.5">Seen</th>
+              <th class="px-2 py-1.5">Source</th>
+            </tr>
+          </thead>
+          <tbody id="endpoint-rows"></tbody>
+        </table>
+      </div>
+    </div>
+    <div id="detail" class="mt-3"></div>
 
     <script type="module" src="./panel.ts"></script>
   </body>

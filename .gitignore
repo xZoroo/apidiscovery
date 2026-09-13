@@ -1,6 +1,7 @@
 node_modules/
-.output/
+output/
 .wxt/
 *.log
 .DS_Store
 .claude/
+.playwright-mcp/

@@ -4,6 +4,7 @@
  * exports, "clear all", and the opt-in Active Probe section.
  */
 
+import "../../assets/tailwind.css";
 import { splitUrl } from "../../src/capture/normalizer.js";
 import {
   clearAll,
@@ -17,12 +18,19 @@ import { toCurl, toEndpointListLine } from "../../src/export/curl.js";
 import { buildHar } from "../../src/export/har.js";
 import type { RuntimeMessage } from "../../src/messaging.js";
 import { probeOrigin } from "../../src/probe/prober.js";
-import { renderDetail, renderEndpointRows, renderSecretRows } from "../../src/ui/renderTable.js";
+import {
+  renderDetail,
+  renderEndpointRows,
+  renderSecretRows,
+  renderSummary,
+  summarize,
+} from "../../src/ui/renderTable.js";
 
 const els = {
   rows: document.querySelector<HTMLTableSectionElement>("#endpoint-rows")!,
   detail: document.querySelector<HTMLElement>("#detail")!,
   secretRows: document.querySelector<HTMLTableSectionElement>("#secret-rows")!,
+  summaryCards: document.querySelector<HTMLElement>("#summary-cards")!,
   search: document.querySelector<HTMLInputElement>("#search")!,
   methodFilter: document.querySelector<HTMLSelectElement>("#method-filter")!,
   severityFilter: document.querySelector<HTMLSelectElement>("#severity-filter")!,
@@ -77,9 +85,11 @@ function populateMethodFilter(): void {
 
 async function refresh(): Promise<void> {
   allEndpoints = await getEndpoints();
+  const secrets = await getSecrets();
   populateMethodFilter();
   renderTable();
-  renderSecretRows(els.secretRows, await getSecrets());
+  renderSecretRows(els.secretRows, secrets);
+  renderSummary(els.summaryCards, summarize(allEndpoints, secrets));
 }
 
 function downloadBlob(filename: string, blob: Blob): void {

@@ -27,13 +27,14 @@ describe("scoreEndpoint", () => {
     expect(scoreEndpoint(endpoint())).toEqual([]);
   });
 
-  it("idor-numeric-id: flags a numeric path segment", () => {
+  it("idor-numeric-id: flags a numeric path segment and reports the exact matched value", () => {
     const findings = scoreEndpoint(endpoint({ exampleUrls: ["https://api.example.com/users/42"] }));
     expect(findings).toContainEqual(
       expect.objectContaining({
         ruleId: "idor-numeric-id",
         rationale: "Path segment '42' looks like a sequential numeric ID -- try adjacent IDs",
         severity: "high",
+        matchedValue: "42",
       }),
     );
   });
@@ -54,19 +55,22 @@ describe("scoreEndpoint", () => {
     expect(findings.some((f) => f.ruleId === "idor-objectid-or-hash")).toBe(true);
   });
 
-  it("sensitive-path: flags an admin path", () => {
+  it("sensitive-path: flags an admin path and reports the matched keyword", () => {
     const findings = scoreEndpoint(endpoint({ templatedPath: "/admin/users" }));
     expect(findings).toContainEqual(
       expect.objectContaining({
         ruleId: "sensitive-path",
         rationale: "Path contains 'admin' -- likely internal/admin surface",
+        matchedValue: "admin",
       }),
     );
   });
 
-  it("auth-bearing: flags when hasAuthHeader is true", () => {
+  it("auth-bearing: flags when hasAuthHeader is true, with no matchedValue (no single literal caused it)", () => {
     const findings = scoreEndpoint(endpoint({ hasAuthHeader: true }));
-    expect(findings.some((f) => f.ruleId === "auth-bearing")).toBe(true);
+    const finding = findings.find((f) => f.ruleId === "auth-bearing");
+    expect(finding).toBeDefined();
+    expect(finding?.matchedValue).toBeUndefined();
   });
 
   it("state-changing-on-object: flags a write method against an id-templated path", () => {
@@ -91,6 +95,7 @@ describe("scoreEndpoint", () => {
       expect.objectContaining({
         ruleId: "mass-assignment-candidate",
         rationale: "Body includes sensitive field 'role' -- check for mass assignment / BOPLA",
+        matchedValue: "role",
       }),
     );
   });

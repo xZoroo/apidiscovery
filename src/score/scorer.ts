@@ -7,9 +7,15 @@ import { RULES, shadowUnversionedFinding } from "./rules.js";
 export function scoreEndpoint(endpoint: EndpointRecord): Finding[] {
   const findings: Finding[] = [];
   for (const rule of RULES) {
-    const rationale = rule.evidence(endpoint);
-    if (rationale !== null) {
-      findings.push({ ruleId: rule.id, label: rule.label, rationale, severity: rule.severity });
+    const evidence = rule.evidence(endpoint);
+    if (evidence !== null) {
+      findings.push({
+        ruleId: rule.id,
+        label: rule.label,
+        rationale: evidence.rationale,
+        severity: rule.severity,
+        ...(evidence.matchedValue !== undefined ? { matchedValue: evidence.matchedValue } : {}),
+      });
     }
   }
   return findings;
