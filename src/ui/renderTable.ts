@@ -6,7 +6,9 @@
  *
  * Styling uses Tailwind utility classes on top of the custom color tokens in
  * assets/tailwind.css; this file owns the DOM structure and severity/method color mapping so the
- * dashboard and devtools panel render identically without duplicating markup.
+ * dashboard and devtools panel render identically without duplicating markup. Most surface/text
+ * colors below (bg-surface, text-ink, border-line, ...) need no separate `dark:` variant --
+ * those tokens are redefined under `.dark` in the stylesheet instead.
  */
 
 import { decodeJwtParts, findJwtCandidates } from "../score/rules.js";
@@ -21,42 +23,36 @@ import type {
 } from "../capture/types.js";
 
 // ---------------------------------------------------------------------------
-// Color mapping -- severity and HTTP method deliberately live in different hue
-// families (see assets/tailwind.css) so a red DELETE badge is never mistaken
-// for a high-severity flag.
+// Color mapping -- severity is the one place this UI spends bold, saturated
+// color (solid badge fills); HTTP methods are quiet colored text with no
+// background, so they never compete with the severity signal for attention.
 // ---------------------------------------------------------------------------
 
 const SEVERITY_STYLES: Record<Severity, { badge: string; callout: string; icon: string }> = {
   high: {
-    badge:
-      "bg-risk-high/10 text-risk-high ring-1 ring-inset ring-risk-high/25 dark:bg-risk-high/20",
-    callout: "border-risk-high bg-risk-high/5 dark:bg-risk-high/10",
+    badge: "bg-risk-high text-white",
+    callout: "border-risk-high bg-risk-high/8",
     icon: "text-risk-high",
   },
   medium: {
-    badge:
-      "bg-risk-medium/10 text-risk-medium ring-1 ring-inset ring-risk-medium/25 dark:bg-risk-medium/20",
-    callout: "border-risk-medium bg-risk-medium/5 dark:bg-risk-medium/10",
+    badge: "bg-risk-medium text-white",
+    callout: "border-risk-medium bg-risk-medium/8",
     icon: "text-risk-medium",
   },
   low: {
-    badge: "bg-risk-low/10 text-risk-low ring-1 ring-inset ring-risk-low/20 dark:bg-risk-low/20",
-    callout: "border-risk-low bg-risk-low/5 dark:bg-risk-low/10",
+    badge: "bg-risk-low text-white",
+    callout: "border-risk-low bg-risk-low/8",
     icon: "text-risk-low",
   },
 };
 
-const METHOD_STYLES: Record<string, string> = {
-  GET: "bg-method-get/10 text-method-get ring-1 ring-inset ring-method-get/25 dark:bg-method-get/20",
-  POST: "bg-method-post/10 text-method-post ring-1 ring-inset ring-method-post/25 dark:bg-method-post/20",
-  PUT: "bg-method-put/10 text-method-put ring-1 ring-inset ring-method-put/25 dark:bg-method-put/20",
-  PATCH:
-    "bg-method-put/10 text-method-put ring-1 ring-inset ring-method-put/25 dark:bg-method-put/20",
-  DELETE:
-    "bg-method-delete/10 text-method-delete ring-1 ring-inset ring-method-delete/25 dark:bg-method-delete/20",
+const METHOD_TEXT_STYLES: Record<string, string> = {
+  POST: "text-method-post",
+  PUT: "text-method-put",
+  PATCH: "text-method-put",
+  DELETE: "text-method-delete",
 };
-const DEFAULT_METHOD_STYLE =
-  "bg-slate-100 text-slate-600 ring-1 ring-inset ring-slate-500/20 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-400/20";
+const DEFAULT_METHOD_TEXT_STYLE = "text-ink-muted";
 
 function severityIconPath(severity: Severity): string {
   if (severity === "high") {
@@ -99,8 +95,16 @@ function badge(text: string, className: string): HTMLSpanElement {
   return span;
 }
 
-function methodBadge(method: string): HTMLSpanElement {
-  return badge(method, `font-mono ${METHOD_STYLES[method] ?? DEFAULT_METHOD_STYLE}`);
+/** Quiet outline-style tag for secondary metadata (OWASP category, capture source). */
+function tag(text: string): HTMLSpanElement {
+  return badge(text, "border border-line text-ink-muted");
+}
+
+function methodLabel(method: string): HTMLSpanElement {
+  const span = document.createElement("span");
+  span.className = `font-mono text-sm font-semibold ${METHOD_TEXT_STYLES[method] ?? DEFAULT_METHOD_TEXT_STYLE}`;
+  span.textContent = method;
+  return span;
 }
 
 // ---------------------------------------------------------------------------
@@ -109,7 +113,11 @@ function methodBadge(method: string): HTMLSpanElement {
 // flagged in context, not just a description of it.
 // ---------------------------------------------------------------------------
 
-/** Renders `text` into `container`, wrapping any occurrence of a term in `terms` in a `<mark>`. */
+export interface HighlightSegment {
+  text: string;
+  highlighted: boolean;
+}
+
 /**
  * Wraps `term` in word-boundary assertions on whichever sides start/end on a word character.
  * Without this, a short numeric ID like "1" (a very common {@link Finding.matchedValue}) would
@@ -121,11 +129,6 @@ function boundaryPattern(term: string): string {
   const startsWithWordChar = /^\w/.test(term);
   const endsWithWordChar = /\w$/.test(term);
   return `${startsWithWordChar ? "\\b" : ""}${escaped}${endsWithWordChar ? "\\b" : ""}`;
-}
-
-export interface HighlightSegment {
-  text: string;
-  highlighted: boolean;
 }
 
 /**
@@ -200,7 +203,7 @@ function buildFlagsCell(endpoint: EndpointRecord, onSelect: SelectHandler): HTML
   const findings = endpoint.findings;
   if (findings.length === 0) {
     const span = document.createElement("span");
-    span.className = "text-xs text-slate-400 dark:text-slate-500";
+    span.className = "text-xs text-ink-muted";
     span.textContent = "—";
     td.appendChild(span);
     return td;
@@ -234,7 +237,7 @@ function buildPathCell(endpoint: EndpointRecord): HTMLTableCellElement {
   // truncate (not wrap) so a long real-world path can't force this fixed-width column to
   // steal space from Flags/Seen/Source -- the full value is still available via the title
   // attribute (hover tooltip) and, more importantly, by clicking the row to open the detail view.
-  const td = cell("truncate font-mono text-slate-700 dark:text-slate-300");
+  const td = cell("truncate font-mono text-ink");
   td.title = endpoint.templatedPath;
   appendHighlighted(td, endpoint.templatedPath, matchedValues(endpoint.findings));
   return td;
@@ -242,26 +245,23 @@ function buildPathCell(endpoint: EndpointRecord): HTMLTableCellElement {
 
 function buildEndpointRow(endpoint: EndpointRecord, onSelect: SelectHandler): HTMLTableRowElement {
   const row = document.createElement("tr");
-  row.className =
-    "cursor-pointer border-b border-slate-100 last:border-0 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/60";
+  row.className = "cursor-pointer border-b border-line last:border-0 hover:bg-page";
 
   const methodCell = cell();
-  methodCell.appendChild(methodBadge(endpoint.method));
+  methodCell.appendChild(methodLabel(endpoint.method));
 
-  const hostCell = cell("truncate font-mono text-slate-500 dark:text-slate-400");
+  const hostCell = cell("truncate font-mono text-ink-muted");
   hostCell.title = endpoint.host;
   hostCell.textContent = endpoint.host;
 
-  const seenCell = cell("text-slate-500 dark:text-slate-400 tabular-nums");
+  const seenCell = cell("text-ink-muted tabular-nums");
   seenCell.textContent = String(endpoint.seenCount);
 
   const sourceCell = cell();
   const sourceWrap = document.createElement("div");
   sourceWrap.className = "flex flex-wrap gap-1";
   for (const source of endpoint.sources) {
-    sourceWrap.appendChild(
-      badge(source, "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400"),
-    );
+    sourceWrap.appendChild(tag(source));
   }
   sourceCell.appendChild(sourceWrap);
 
@@ -289,7 +289,7 @@ export function renderEndpointRows(
     const row = document.createElement("tr");
     const td = document.createElement("td");
     td.colSpan = 6;
-    td.className = "px-3 py-10 text-center text-sm text-slate-400 dark:text-slate-500";
+    td.className = "px-3 py-10 text-center text-sm text-ink-muted";
     td.textContent =
       "No endpoints match the current filters. Browse the target site, or clear filters, to see more.";
     row.appendChild(td);
@@ -303,17 +303,10 @@ export function renderEndpointRows(
 // Detail view -- security findings as callout cards, then request/response.
 // ---------------------------------------------------------------------------
 
-function buildOwaspTag(category: string | undefined): HTMLElement | null {
-  if (category === undefined) return null;
-  return badge(category, "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400");
-}
-
 function buildFindingCallout(finding: Finding, focused: boolean): HTMLElement {
   const box = document.createElement("div");
   box.dataset["ruleId"] = finding.ruleId;
-  const focusRing = focused
-    ? " ring-2 ring-brand-500 ring-offset-1 dark:ring-offset-slate-900"
-    : "";
+  const focusRing = focused ? " ring-2 ring-brand ring-offset-1 ring-offset-surface" : "";
   box.className = `flex items-start gap-2 rounded-md border-l-4 p-3 ${SEVERITY_STYLES[finding.severity].callout}${focusRing}`;
 
   box.appendChild(severityIcon(finding.severity));
@@ -324,14 +317,13 @@ function buildFindingCallout(finding: Finding, focused: boolean): HTMLElement {
   const heading = document.createElement("div");
   heading.className = "flex flex-wrap items-center gap-2";
   const label = document.createElement("span");
-  label.className = "text-sm font-semibold text-slate-900 dark:text-slate-100";
+  label.className = "text-sm font-semibold text-ink";
   label.textContent = finding.label;
   heading.append(label, badge(finding.severity, SEVERITY_STYLES[finding.severity].badge));
-  const owaspTag = buildOwaspTag(finding.owaspCategory);
-  if (owaspTag !== null) heading.appendChild(owaspTag);
+  if (finding.owaspCategory !== undefined) heading.appendChild(tag(finding.owaspCategory));
 
   const rationale = document.createElement("p");
-  rationale.className = "mt-1 text-sm text-slate-600 dark:text-slate-300";
+  rationale.className = "mt-1 text-sm text-ink-muted";
   appendHighlighted(
     rationale,
     finding.rationale,
@@ -351,8 +343,7 @@ function buildFindingsSection(
   const section = document.createElement("div");
   section.className = "space-y-2";
   const heading = document.createElement("h3");
-  heading.className =
-    "text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400";
+  heading.className = "text-xs font-semibold uppercase tracking-wide text-ink-muted";
   heading.textContent = `Security findings (${String(findings.length)})`;
   section.appendChild(heading);
   for (const finding of findings) {
@@ -363,22 +354,22 @@ function buildFindingsSection(
 
 function buildHeadersList(headers: HeaderEntry[] | undefined): HTMLElement {
   const wrap = document.createElement("dl");
-  wrap.className = "divide-y divide-slate-100 text-xs dark:divide-slate-800";
+  wrap.className = "divide-y divide-line text-xs";
   for (const header of headers ?? []) {
     const row = document.createElement("div");
     row.className = "flex gap-2 py-1";
     const dt = document.createElement("dt");
-    dt.className = "w-40 shrink-0 font-mono text-slate-500 dark:text-slate-400";
+    dt.className = "w-40 shrink-0 font-mono text-ink-muted";
     dt.textContent = header.name;
     const dd = document.createElement("dd");
-    dd.className = "min-w-0 flex-1 break-all font-mono text-slate-700 dark:text-slate-300";
+    dd.className = "min-w-0 flex-1 break-all font-mono text-ink";
     dd.textContent = header.value;
     row.append(dt, dd);
     wrap.appendChild(row);
   }
   if ((headers ?? []).length === 0) {
     const empty = document.createElement("p");
-    empty.className = "text-xs text-slate-400 dark:text-slate-500";
+    empty.className = "text-xs text-ink-muted";
     empty.textContent = "No headers captured.";
     wrap.appendChild(empty);
   }
@@ -388,11 +379,10 @@ function buildHeadersList(headers: HeaderEntry[] | undefined): HTMLElement {
 /** Pretty-prints a body as JSON when it parses as such, otherwise shows the raw text. */
 function buildBodyPre(body: string | undefined): HTMLPreElement {
   const pre = document.createElement("pre");
-  pre.className =
-    "mt-2 max-h-60 overflow-auto rounded-md bg-slate-900 p-3 text-xs text-slate-100 dark:bg-black";
+  pre.className = "mt-2 max-h-60 overflow-auto rounded-md bg-ink p-3 text-xs text-page";
   if (body === undefined) {
     pre.textContent = "(no body)";
-    pre.className += " italic text-slate-500";
+    pre.className += " italic opacity-60";
     return pre;
   }
   try {
@@ -410,8 +400,7 @@ function buildExchangeBlock(
 ): HTMLElement {
   const section = document.createElement("div");
   const heading = document.createElement("h4");
-  heading.className =
-    "text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400";
+  heading.className = "text-xs font-semibold uppercase tracking-wide text-ink-muted";
   heading.textContent = title;
   section.append(heading, buildHeadersList(headers), buildBodyPre(body));
   return section;
@@ -424,8 +413,7 @@ function buildExchangeBlock(
  */
 function buildNoSampleNotice(endpoint: EndpointRecord): HTMLElement {
   const box = document.createElement("div");
-  box.className =
-    "rounded-md border border-dashed border-slate-300 p-3 text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400";
+  box.className = "rounded-md border border-dashed border-line p-3 text-xs text-ink-muted";
   const onlyMined = endpoint.sources.every((s) => s === "js-mined");
   box.textContent = onlyMined
     ? "No captured request/response yet -- this endpoint was found by scanning JavaScript, not by observing real traffic. Browse the site so it actually calls this endpoint, then reopen this row."
@@ -438,8 +426,7 @@ function buildRequestResponseBlock(request: CapturedRequest): HTMLElement {
   wrapper.className = "space-y-2";
 
   const heading = document.createElement("h3");
-  heading.className =
-    "text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400";
+  heading.className = "text-xs font-semibold uppercase tracking-wide text-ink-muted";
   heading.textContent = "Request & response";
   wrapper.appendChild(heading);
 
@@ -494,15 +481,14 @@ function buildJwtSection(sampleRequests: CapturedRequest[]): HTMLElement | null 
 
   const section = document.createElement("div");
   const heading = document.createElement("h3");
-  heading.className =
-    "text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400";
+  heading.className = "text-xs font-semibold uppercase tracking-wide text-ink-muted";
   heading.textContent = "Decoded JWT";
   section.appendChild(heading);
 
   const decoded = decodeJwtParts(token);
   if (decoded === null) {
     const p = document.createElement("p");
-    p.className = "mt-1 text-xs text-slate-400 dark:text-slate-500";
+    p.className = "mt-1 text-xs text-ink-muted";
     p.textContent = "Found a JWT-shaped token but could not decode it.";
     section.appendChild(p);
     return section;
@@ -517,8 +503,7 @@ function buildJwtSection(sampleRequests: CapturedRequest[]): HTMLElement | null 
   }
 
   const pre = document.createElement("pre");
-  pre.className =
-    "mt-2 max-h-40 overflow-auto rounded-md bg-slate-900 p-3 text-xs text-slate-100 dark:bg-black";
+  pre.className = "mt-2 max-h-40 overflow-auto rounded-md bg-ink p-3 text-xs text-page";
   pre.textContent = JSON.stringify({ header: decoded.header, payload: decoded.payload }, null, 2);
   section.appendChild(pre);
   return section;
@@ -536,14 +521,13 @@ export function renderDetail(
   focusRuleId?: string,
 ): void {
   container.replaceChildren();
-  container.className =
-    "space-y-4 rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900";
+  container.className = "space-y-4 rounded-lg border border-line bg-surface p-4";
 
   const heading = document.createElement("div");
   heading.className = "flex flex-wrap items-center gap-2";
-  heading.appendChild(methodBadge(endpoint.method));
+  heading.appendChild(methodLabel(endpoint.method));
   const pathHeading = document.createElement("span");
-  pathHeading.className = "font-mono text-sm text-slate-800 dark:text-slate-200";
+  pathHeading.className = "font-mono text-sm text-ink";
   appendHighlighted(
     pathHeading,
     `${endpoint.host}${endpoint.templatedPath}`,
@@ -553,7 +537,7 @@ export function renderDetail(
   container.appendChild(heading);
 
   const urlList = document.createElement("ul");
-  urlList.className = "space-y-0.5 font-mono text-xs text-slate-500 dark:text-slate-400";
+  urlList.className = "space-y-0.5 font-mono text-xs text-ink-muted";
   for (const url of endpoint.exampleUrls) {
     const li = document.createElement("li");
     li.className = "truncate";
@@ -594,7 +578,7 @@ export function renderSecretRows(tbody: HTMLTableSectionElement, secrets: Stored
     const row = document.createElement("tr");
     const td = document.createElement("td");
     td.colSpan = 3;
-    td.className = "px-3 py-6 text-center text-sm text-slate-400 dark:text-slate-500";
+    td.className = "px-3 py-6 text-center text-sm text-ink-muted";
     td.textContent = "No secrets found in scanned JavaScript.";
     row.appendChild(td);
     tbody.replaceChildren(row);
@@ -603,15 +587,15 @@ export function renderSecretRows(tbody: HTMLTableSectionElement, secrets: Stored
   tbody.replaceChildren(
     ...secrets.map((secret) => {
       const row = document.createElement("tr");
-      row.className = "border-b border-slate-100 last:border-0 dark:border-slate-800";
+      row.className = "border-b border-line last:border-0";
 
       const labelCell = cell();
       labelCell.appendChild(badge(secret.label, SEVERITY_STYLES.high.badge));
 
-      const matchCell = cell("font-mono text-slate-700 dark:text-slate-300");
+      const matchCell = cell("font-mono text-ink");
       matchCell.textContent = secret.match;
 
-      const sourceCell = cell("font-mono text-slate-500 dark:text-slate-400");
+      const sourceCell = cell("font-mono text-ink-muted");
       sourceCell.textContent = secret.sourceFile;
 
       row.append(labelCell, matchCell, sourceCell);
@@ -647,14 +631,12 @@ export function summarize(endpoints: EndpointRecord[], secrets: StoredSecret[]):
 
 function buildStatCard(label: string, value: number, accentClass: string): HTMLElement {
   const card = document.createElement("div");
-  card.className =
-    "rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900";
+  card.className = "rounded-lg border border-line bg-surface p-4";
   const valueEl = document.createElement("p");
   valueEl.className = `text-2xl font-semibold tabular-nums ${accentClass}`;
   valueEl.textContent = String(value);
   const labelEl = document.createElement("p");
-  labelEl.className =
-    "mt-1 text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400";
+  labelEl.className = "mt-1 text-xs font-medium uppercase tracking-wide text-ink-muted";
   labelEl.textContent = label;
   card.append(valueEl, labelEl);
   return card;
@@ -663,7 +645,7 @@ function buildStatCard(label: string, value: number, accentClass: string): HTMLE
 /** Renders the KPI summary cards row into `container`, replacing any existing content. */
 export function renderSummary(container: HTMLElement, summary: CatalogSummary): void {
   container.replaceChildren(
-    buildStatCard("Endpoints", summary.total, "text-brand-600 dark:text-brand-400"),
+    buildStatCard("Endpoints", summary.total, "text-brand"),
     buildStatCard("High severity", summary.high, "text-risk-high"),
     buildStatCard("Medium severity", summary.medium, "text-risk-medium"),
     buildStatCard("Low severity", summary.low, "text-risk-low"),

@@ -35,6 +35,8 @@ import {
 } from "../../src/ui/tableState.js";
 
 const els = {
+  themeToggle: document.querySelector<HTMLButtonElement>("#theme-toggle")!,
+  themeToggleLabel: document.querySelector<HTMLElement>("#theme-toggle-label")!,
   rows: document.querySelector<HTMLTableSectionElement>("#endpoint-rows")!,
   detail: document.querySelector<HTMLElement>("#detail")!,
   secretRows: document.querySelector<HTMLTableSectionElement>("#secret-rows")!,
@@ -53,6 +55,33 @@ const els = {
   probeRun: document.querySelector<HTMLButtonElement>("#probe-run")!,
   probeStatus: document.querySelector<HTMLElement>("#probe-status")!,
 };
+
+const THEME_STORAGE_KEY = "theme";
+
+function currentTheme(): "light" | "dark" {
+  const stored = localStorage.getItem(THEME_STORAGE_KEY);
+  if (stored === "light" || stored === "dark") return stored;
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
+function applyTheme(theme: "light" | "dark"): void {
+  document.documentElement.classList.toggle("dark", theme === "dark");
+  els.themeToggleLabel.textContent = theme === "dark" ? "Light mode" : "Dark mode";
+}
+
+// Applied immediately, before any other setup, to minimize the flash of the wrong theme.
+// Extension pages can't use the usual inline-<script>-in-<head> trick for this (MV3's default
+// CSP blocks inline scripts), so this is the earliest point a class-based dark mode can take
+// effect: as close to the top of the entry module as possible.
+applyTheme(currentTheme());
+
+function setUpThemeToggle(): void {
+  els.themeToggle.addEventListener("click", () => {
+    const next = currentTheme() === "dark" ? "light" : "dark";
+    localStorage.setItem(THEME_STORAGE_KEY, next);
+    applyTheme(next);
+  });
+}
 
 let allEndpoints: EndpointRecord[] = [];
 let sortKey: SortKey = "risk";
@@ -87,8 +116,7 @@ function updateSortIndicators(): void {
     // until you've already clicked one.
     indicator.textContent = isActive ? (sortDirection === "asc" ? " ▲" : " ▼") : " ⇅";
     indicator.classList.toggle("opacity-40", !isActive);
-    header.classList.toggle("text-slate-900", isActive);
-    header.classList.toggle("dark:text-slate-100", isActive);
+    header.classList.toggle("text-ink", isActive);
   }
 }
 
@@ -252,6 +280,7 @@ function setUpLiveUpdates(): void {
   });
 }
 
+setUpThemeToggle();
 setUpToolbar();
 setUpSortHeaders();
 setUpProbeSection();

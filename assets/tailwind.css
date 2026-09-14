@@ -1,30 +1,70 @@
 @import "tailwindcss";
 
+/* Class-based dark mode (not just prefers-color-scheme) so the toggle in the dashboard header
+   actually controls the theme instead of only following the OS. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 /*
- * A considered color system for a security-triage tool, not stock Tailwind swatches.
+ * A considered color system for a security-triage tool, not stock Tailwind swatches -- and
+ * deliberately restrained: severity is the ONE place that gets bold, saturated color (solid
+ * badge fills), because it's the primary signal this tool exists to surface. Everything else
+ * (the neutral surfaces, the HTTP method labels) stays quiet so severity actually stands out
+ * instead of competing with seven other saturated hues.
  *
- * Severity and HTTP method deliberately live in different hue families: reusing red for both
- * "DELETE" and "high severity" is a common dashboard mistake that makes a red badge ambiguous at
- * a glance. Severity stays in the red/amber/slate family; methods use blue/green/violet/magenta.
+ * Semantic surface tokens (page/surface/line/ink/ink-muted, brand) are redefined under `.dark`
+ * below, so most markup needs no separate `dark:` variant at all.
  */
 @theme {
-  /* Interactive accent (links, buttons, focus rings) -- a deep teal, not the default indigo/blue. */
-  --color-brand-400: #4fd8cb;
-  --color-brand-500: #0e9c8f;
-  --color-brand-600: #0b7c72;
+  /* Warm paper/ink neutrals -- not stock slate/gray, and not stark white/black. */
+  --color-page: #faf9f6;
+  --color-surface: #ffffff;
+  --color-line: #e3e0d9;
+  --color-ink: #1c1a16;
+  --color-ink-muted: #6b6459;
 
-  /* Risk severity -- the primary triage signal. */
-  --color-risk-high: #d63a47;
-  --color-risk-medium: #c9770d;
-  --color-risk-low: #5b6b85;
+  /* Interactive accent (buttons, links, focus rings, the toggle) -- one considered teal. */
+  --color-brand: #0f8f7f;
+  --color-brand-hover: #0b7367;
 
-  /* HTTP method accents -- a separate hue family from risk severity on purpose. */
-  --color-method-get: #2f6fdb;
-  --color-method-post: #1e8f6f;
-  --color-method-put: #6952c4;
-  --color-method-delete: #b0348a;
+  /* Risk severity -- solid fills, white text: the one deliberately bold element. */
+  --color-risk-high: #c02b3a;
+  --color-risk-medium: #b8650a;
+  --color-risk-low: #6b6459;
+
+  /* HTTP method text colors -- quiet (no background fill), just colored monospace text so they
+     read at a glance without competing with the severity badges. GET has no color of its own;
+     it reuses --color-ink-muted since a plain read is the "nothing to see here" case. */
+  --color-method-post: #167a53;
+  --color-method-put: #7b4fc9;
+  --color-method-delete: #b8306e;
 
   /* Highlighter for calling out the exact flagged text in place. */
   --color-mark: #ffd84d;
   --color-mark-ink: #3a2e00;
+}
+
+.dark {
+  --color-page: #15130f;
+  --color-surface: #1e1b16;
+  --color-line: #34302a;
+  --color-ink: #f2efe8;
+  --color-ink-muted: #a39a8c;
+
+  --color-brand: #2dd4c4;
+  --color-brand-hover: #5ee4d6;
+
+  --color-risk-high: #e2495a;
+  --color-risk-medium: #d68b2e;
+  --color-risk-low: #a39a8c;
+
+  --color-method-post: #3dbf8a;
+  --color-method-put: #9b7ae0;
+  --color-method-delete: #d6579a;
+}
+
+:root {
+  color-scheme: light;
+}
+.dark {
+  color-scheme: dark;
 }
