@@ -11,6 +11,14 @@
  * those tokens are redefined under `.dark` in the stylesheet instead.
  */
 
+import {
+  formatHeaderLines,
+  parseHeaderLines,
+  sendRepeaterRequest,
+  type RepeaterError,
+  type RepeaterRequest,
+  type RepeaterResponse,
+} from "../repeater/sendRequest.js";
 import { decodeJwtParts, findJwtCandidates } from "../score/rules.js";
 import { maxSeverity } from "../score/scorer.js";
 import type {
@@ -509,6 +517,124 @@ function buildJwtSection(sampleRequests: CapturedRequest[]): HTMLElement | null 
   return section;
 }
 
+// ---------------------------------------------------------------------------
+// Repeater -- edit and resend a captured request. Visually flagged like the dashboard's opt-in
+// probe section (same risk-medium border) because, unlike the rest of this tool, clicking Send
+// here does send a real request to the target.
+// ---------------------------------------------------------------------------
+
+function buildRepeaterResponseView(result: RepeaterResponse | RepeaterError): HTMLElement {
+  if ("error" in result) {
+    const box = document.createElement("div");
+    box.className =
+      "rounded-md border border-risk-high/40 bg-risk-high/8 p-3 text-xs text-risk-high";
+    box.textContent = `Request failed: ${result.error}`;
+    return box;
+  }
+  const wrapper = document.createElement("div");
+  wrapper.className = "space-y-2";
+  const status = document.createElement("p");
+  status.className = "font-mono text-sm font-semibold text-ink";
+  status.textContent = `${String(result.status)} ${result.statusText} — ${String(result.timedMs)}ms`;
+  wrapper.append(status, buildHeadersList(result.headers), buildBodyPre(result.body));
+  return wrapper;
+}
+
+function buildRepeaterSection(
+  endpoint: EndpointRecord,
+  sample: CapturedRequest | undefined,
+): HTMLElement {
+  const section = document.createElement("div");
+  section.className = "space-y-3 rounded-lg border border-risk-medium/40 bg-risk-medium/10 p-4";
+
+  const heading = document.createElement("h3");
+  heading.className = "text-sm font-semibold text-risk-medium";
+  heading.textContent = "Repeater";
+  const warning = document.createElement("p");
+  warning.className = "text-xs text-ink-muted";
+  warning.textContent =
+    "Sends a real, editable request straight from your browser -- no proxy or certificate needed. " +
+    "Browser-managed headers (Host, Cookie, Content-Length, ...) can't be overridden here. Only use " +
+    "this against systems you are authorized to test.";
+  section.append(heading, warning);
+
+  const inputClass =
+    "rounded-md border border-line bg-surface px-2 py-1 font-mono text-sm text-ink focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand";
+
+  const row = document.createElement("div");
+  row.className = "flex gap-2";
+  const methodInput = document.createElement("input");
+  methodInput.type = "text";
+  methodInput.spellcheck = false;
+  methodInput.value = sample?.method ?? endpoint.method;
+  methodInput.className = `w-24 uppercase ${inputClass}`;
+  const urlInput = document.createElement("input");
+  urlInput.type = "text";
+  urlInput.spellcheck = false;
+  urlInput.value =
+    sample?.url ?? endpoint.exampleUrls[0] ?? `https://${endpoint.host}${endpoint.templatedPath}`;
+  urlInput.className = `min-w-0 flex-1 ${inputClass}`;
+  row.append(methodInput, urlInput);
+
+  const textareaClass =
+    "w-full rounded-md border border-line bg-surface p-2 font-mono text-xs text-ink focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand";
+  const headersTextarea = document.createElement("textarea");
+  headersTextarea.rows = 4;
+  headersTextarea.spellcheck = false;
+  headersTextarea.placeholder = "Header-Name: value (one per line)";
+  headersTextarea.value = formatHeaderLines(sample?.requestHeaders ?? []);
+  headersTextarea.className = textareaClass;
+
+  const bodyTextarea = document.createElement("textarea");
+  bodyTextarea.rows = 4;
+  bodyTextarea.spellcheck = false;
+  bodyTextarea.placeholder = "Request body";
+  bodyTextarea.value = sample?.requestBody ?? "";
+  bodyTextarea.className = textareaClass;
+
+  const credentialsLabel = document.createElement("label");
+  credentialsLabel.className = "flex items-center gap-2 text-xs text-ink-muted";
+  const credentialsCheckbox = document.createElement("input");
+  credentialsCheckbox.type = "checkbox";
+  credentialsCheckbox.checked = true;
+  credentialsLabel.append(
+    credentialsCheckbox,
+    document.createTextNode("Include cookies/credentials"),
+  );
+
+  const sendButton = document.createElement("button");
+  sendButton.type = "button";
+  sendButton.textContent = "Send";
+  sendButton.className =
+    "rounded-md bg-risk-medium px-3 py-1.5 text-sm font-medium text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50";
+
+  const controlsRow = document.createElement("div");
+  controlsRow.className = "flex items-center gap-3";
+  controlsRow.append(sendButton, credentialsLabel);
+
+  const responseContainer = document.createElement("div");
+
+  sendButton.addEventListener("click", () => {
+    sendButton.disabled = true;
+    sendButton.textContent = "Sending…";
+    const request: RepeaterRequest = {
+      method: methodInput.value,
+      url: urlInput.value,
+      headers: parseHeaderLines(headersTextarea.value),
+      body: bodyTextarea.value,
+      includeCredentials: credentialsCheckbox.checked,
+    };
+    void sendRepeaterRequest(request, sample?.tabId ?? null).then((result) => {
+      sendButton.disabled = false;
+      sendButton.textContent = "Send";
+      responseContainer.replaceChildren(buildRepeaterResponseView(result));
+    });
+  });
+
+  section.append(row, headersTextarea, bodyTextarea, controlsRow, responseContainer);
+  return section;
+}
+
 /**
  * Renders the expanded detail view for one endpoint: example URLs, its findings as callout
  * cards (the one matching `focusRuleId` gets a highlight ring and is scrolled into view), a
@@ -556,6 +682,7 @@ export function renderDetail(
   container.appendChild(
     sample !== undefined ? buildRequestResponseBlock(sample) : buildNoSampleNotice(endpoint),
   );
+  container.appendChild(buildRepeaterSection(endpoint, sample));
 
   // Always bring the detail panel into view on selection, not just when a specific finding is
   // focused -- otherwise, on a long endpoint list, clicking a row can silently update a detail
