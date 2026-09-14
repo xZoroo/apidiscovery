@@ -11,6 +11,7 @@
  * those tokens are redefined under `.dark` in the stylesheet instead.
  */
 
+import { buildConfirmationTestsSection } from "./confirmationTestsView.js";
 import {
   formatHeaderLines,
   parseHeaderLines,
@@ -683,6 +684,7 @@ export function renderDetail(
     sample !== undefined ? buildRequestResponseBlock(sample) : buildNoSampleNotice(endpoint),
   );
   container.appendChild(buildRepeaterSection(endpoint, sample));
+  container.appendChild(buildConfirmationTestsSection(endpoint, sample));
 
   // Always bring the detail panel into view on selection, not just when a specific finding is
   // focused -- otherwise, on a long endpoint list, clicking a row can silently update a detail
