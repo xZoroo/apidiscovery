@@ -15,6 +15,19 @@ const rowsEl = document.querySelector<HTMLTableSectionElement>("#endpoint-rows")
 const detailEl = document.querySelector<HTMLElement>("#detail")!;
 const openDashboardEl = document.querySelector<HTMLButtonElement>("#open-dashboard")!;
 
+// No toggle here by design (this panel stays a thin shortcut) -- it just mirrors whatever the
+// dashboard's theme toggle last chose, so the two surfaces never look mismatched.
+function applyStoredTheme(): void {
+  const stored = localStorage.getItem("theme");
+  const isDark =
+    stored === "dark" || (stored === null && matchMedia("(prefers-color-scheme: dark)").matches);
+  document.documentElement.classList.toggle("dark", isDark);
+}
+applyStoredTheme();
+window.addEventListener("storage", (event) => {
+  if (event.key === "theme") applyStoredTheme();
+});
+
 async function onSelectEndpoint(endpoint: EndpointRecord, focusRuleId?: string): Promise<void> {
   const requests = await getRequestsByIds(endpoint.sampleRequestIds);
   renderDetail(detailEl, endpoint, requests, focusRuleId);
