@@ -37,7 +37,7 @@ import type {
 // background, so they never compete with the severity signal for attention.
 // ---------------------------------------------------------------------------
 
-const SEVERITY_STYLES: Record<Severity, { badge: string; callout: string; icon: string }> = {
+export const SEVERITY_STYLES: Record<Severity, { badge: string; callout: string; icon: string }> = {
   high: {
     badge: "bg-risk-high text-white",
     callout: "border-risk-high bg-risk-high/8",
@@ -97,7 +97,7 @@ function severityIcon(severity: Severity): SVGSVGElement {
   return svg;
 }
 
-function badge(text: string, className: string): HTMLSpanElement {
+export function badge(text: string, className: string): HTMLSpanElement {
   const span = document.createElement("span");
   span.className = `inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ${className}`;
   span.textContent = text;
@@ -109,7 +109,7 @@ function tag(text: string): HTMLSpanElement {
   return badge(text, "border border-line text-ink-muted");
 }
 
-function methodLabel(method: string): HTMLSpanElement {
+export function methodLabel(method: string): HTMLSpanElement {
   const span = document.createElement("span");
   span.className = `font-mono text-sm font-semibold ${METHOD_TEXT_STYLES[method] ?? DEFAULT_METHOD_TEXT_STYLE}`;
   span.textContent = method;

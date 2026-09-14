@@ -25,6 +25,7 @@ import {
   renderSummary,
   summarize,
 } from "../../src/ui/renderTable.js";
+import { renderSiteMap } from "../../src/ui/siteMapView.js";
 import {
   distinctOwaspCategories,
   matchesOwaspCategory,
@@ -48,6 +49,10 @@ const els = {
   clearFilters: document.querySelector<HTMLButtonElement>("#clear-filters")!,
   resultCount: document.querySelector<HTMLElement>("#result-count")!,
   sortHeaders: document.querySelectorAll<HTMLButtonElement>(".sort-header"),
+  tableView: document.querySelector<HTMLElement>("#table-view")!,
+  siteMapView: document.querySelector<HTMLElement>("#site-map-view")!,
+  viewTable: document.querySelector<HTMLButtonElement>("#view-table")!,
+  viewSiteMap: document.querySelector<HTMLButtonElement>("#view-site-map")!,
   exportHar: document.querySelector<HTMLButtonElement>("#export-har")!,
   exportList: document.querySelector<HTMLButtonElement>("#export-list")!,
   clearAll: document.querySelector<HTMLButtonElement>("#clear-all")!,
@@ -87,6 +92,38 @@ let allEndpoints: EndpointRecord[] = [];
 let sortKey: SortKey = "risk";
 let sortDirection: SortDirection = "desc";
 
+const VIEW_STORAGE_KEY = "endpointView";
+type EndpointView = "table" | "site-map";
+
+function currentEndpointView(): EndpointView {
+  return localStorage.getItem(VIEW_STORAGE_KEY) === "site-map" ? "site-map" : "table";
+}
+
+let endpointView: EndpointView = currentEndpointView();
+
+function applyEndpointView(): void {
+  els.tableView.hidden = endpointView !== "table";
+  els.siteMapView.hidden = endpointView !== "site-map";
+  const active = "bg-brand text-white";
+  const inactive = "text-ink-muted hover:bg-surface";
+  els.viewTable.className = `rounded-l-md px-3 py-1.5 text-sm font-medium ${endpointView === "table" ? active : inactive}`;
+  els.viewSiteMap.className = `rounded-r-md border-l border-line px-3 py-1.5 text-sm font-medium ${endpointView === "site-map" ? active : inactive}`;
+}
+
+function setUpViewToggle(): void {
+  applyEndpointView();
+  els.viewTable.addEventListener("click", () => {
+    endpointView = "table";
+    localStorage.setItem(VIEW_STORAGE_KEY, endpointView);
+    applyEndpointView();
+  });
+  els.viewSiteMap.addEventListener("click", () => {
+    endpointView = "site-map";
+    localStorage.setItem(VIEW_STORAGE_KEY, endpointView);
+    applyEndpointView();
+  });
+}
+
 function matchesFilters(endpoint: EndpointRecord): boolean {
   if (!matchesQuery(endpoint, els.search.value)) return false;
   const method = els.methodFilter.value;
@@ -124,6 +161,11 @@ function renderTable(): void {
   const visible = visibleEndpoints();
   renderEndpointRows(els.rows, visible, (endpoint, focusRuleId) => {
     void onSelectEndpoint(endpoint, focusRuleId);
+  });
+  // Kept in sync on every refresh regardless of which view is showing, so switching the toggle
+  // is instant rather than needing its own re-render pass.
+  renderSiteMap(els.siteMapView, visible, (endpoint) => {
+    void onSelectEndpoint(endpoint);
   });
   els.resultCount.textContent = `Showing ${String(visible.length)} of ${String(allEndpoints.length)} endpoints`;
   updateSortIndicators();
@@ -284,6 +326,7 @@ function setUpLiveUpdates(): void {
 }
 
 setUpThemeToggle();
+setUpViewToggle();
 setUpToolbar();
 setUpSortHeaders();
 setUpProbeSection();
