@@ -95,6 +95,22 @@
       <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
         <p id="result-count" class="text-xs text-ink-muted"></p>
         <div class="flex gap-2">
+          <div class="flex rounded-md border border-line" role="group" aria-label="View">
+            <button
+              id="view-table"
+              type="button"
+              class="rounded-l-md px-3 py-1.5 text-sm font-medium"
+            >
+              Table
+            </button>
+            <button
+              id="view-site-map"
+              type="button"
+              class="rounded-r-md border-l border-line px-3 py-1.5 text-sm font-medium"
+            >
+              Site map
+            </button>
+          </div>
           <button
             id="export-har"
             class="rounded-md border border-line px-3 py-1.5 text-sm font-medium text-ink hover:bg-surface"
@@ -110,7 +126,7 @@
         </div>
       </div>
 
-      <div class="overflow-hidden rounded-lg border border-line bg-surface">
+      <div id="table-view" class="overflow-hidden rounded-lg border border-line bg-surface">
         <div class="overflow-x-auto">
           <table class="w-full table-fixed border-collapse">
             <colgroup>
@@ -185,6 +201,12 @@
           </table>
         </div>
       </div>
+
+      <div
+        id="site-map-view"
+        class="overflow-hidden rounded-lg border border-line bg-surface"
+        hidden
+      ></div>
 
       <div id="detail" class="mt-4"></div>
 
