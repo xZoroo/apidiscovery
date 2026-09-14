@@ -6,10 +6,22 @@
 
 import { isInjectedCaptureMessage, type RuntimeMessage } from "../src/messaging.js";
 
+/**
+ * Mints a per-page-load anti-forgery token and hands it to `injected.content.ts` via a DOM
+ * attribute, which that MAIN-world script reads once and immediately deletes -- see the matching
+ * comment there. This isolated-world content script is registered before the MAIN-world one in
+ * the manifest (verify in the built output if either file is ever renamed), so the attribute is
+ * always set before `injected.content.ts` runs; if that ordering were ever broken, captures would
+ * simply stop (the token wouldn't match) rather than silently falling back to the unauthenticated
+ * behavior this replaces.
+ */
 function relayCaptures(): void {
+  const token = crypto.randomUUID();
+  document.documentElement.dataset["apidiscoveryToken"] = token;
+
   window.addEventListener("message", (event) => {
     if (event.source !== window) return;
-    if (!isInjectedCaptureMessage(event.data)) return;
+    if (!isInjectedCaptureMessage(event.data, token)) return;
     const message: RuntimeMessage = { type: "capture", payload: event.data.payload };
     browser.runtime.sendMessage(message).catch(() => {
       // The background service worker may be mid-restart; the next capture will succeed once

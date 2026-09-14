@@ -30,8 +30,16 @@ function safeHostAndPath(url: string): { host: string; path: string } {
   }
 }
 
+// Set by main() from a DOM attribute content.ts wrote before this script ran, then immediately
+// deleted from the DOM -- see the handshake comment on main() below.
+let bridgeToken = "";
+
 function postCapture(payload: CapturePayload): void {
-  const message: InjectedCaptureMessage = { source: INJECTED_MESSAGE_SOURCE, payload };
+  const message: InjectedCaptureMessage = {
+    source: INJECTED_MESSAGE_SOURCE,
+    token: bridgeToken,
+    payload,
+  };
   window.postMessage(message, "*");
 }
 
@@ -220,6 +228,14 @@ export default defineContentScript({
   world: "MAIN",
   runAt: "document_start",
   main() {
+    // content.ts (isolated world) runs before this MAIN-world script (it's listed first in the
+    // manifest's content_scripts array) and writes a fresh per-page-load token to this attribute
+    // for exactly this one read. Deleting it immediately closes the only window in which the
+    // page's own JS -- which shares this same `window`/document with us -- could otherwise read
+    // it too. Without this, any page could forge `window.postMessage` calls that look identical
+    // to our own captures.
+    bridgeToken = document.documentElement.dataset["apidiscoveryToken"] ?? "";
+    delete document.documentElement.dataset["apidiscoveryToken"];
     patchFetch();
     patchXhr();
     patchWebSocket();

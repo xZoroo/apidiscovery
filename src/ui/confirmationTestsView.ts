@@ -98,8 +98,9 @@ export function buildConfirmationTestsSection(
   warning.textContent =
     "Each button below sends a small, bounded number of real requests to confirm (or rule out) " +
     "one specific issue on this endpoint. None of these loop or run automatically. Only use " +
-    "them against systems you are authorized to test -- the mass assignment test performs a " +
-    "real write.";
+    "them against systems you are authorized to test -- the mass assignment test always sends a " +
+    "real write, and the method tampering test can too (it tries real PUT/DELETE calls with your " +
+    "credentials attached).";
   section.append(heading, warning);
 
   section.append(
