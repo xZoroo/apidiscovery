@@ -82,7 +82,11 @@ function updateSortIndicators(): void {
     const indicator = header.querySelector<HTMLElement>(".sort-indicator");
     if (indicator === null) continue;
     const isActive = header.dataset["sortKey"] === sortKey;
-    indicator.textContent = isActive ? (sortDirection === "asc" ? " ▲" : " ▼") : "";
+    // A dim "⇅" on every header (not just the active one) signals up front that all columns
+    // are sortable -- otherwise nothing distinguishes a clickable header from a plain label
+    // until you've already clicked one.
+    indicator.textContent = isActive ? (sortDirection === "asc" ? " ▲" : " ▼") : " ⇅";
+    indicator.classList.toggle("opacity-40", !isActive);
     header.classList.toggle("text-slate-900", isActive);
     header.classList.toggle("dark:text-slate-100", isActive);
   }

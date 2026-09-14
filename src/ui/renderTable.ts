@@ -205,7 +205,11 @@ function buildFlagsCell(endpoint: EndpointRecord, onSelect: SelectHandler): HTML
 }
 
 function buildPathCell(endpoint: EndpointRecord): HTMLTableCellElement {
-  const td = cell("font-mono text-slate-700 dark:text-slate-300");
+  // truncate (not wrap) so a long real-world path can't force this fixed-width column to
+  // steal space from Flags/Seen/Source -- the full value is still available via the title
+  // attribute (hover tooltip) and, more importantly, by clicking the row to open the detail view.
+  const td = cell("truncate font-mono text-slate-700 dark:text-slate-300");
+  td.title = endpoint.templatedPath;
   appendHighlighted(td, endpoint.templatedPath, matchedValues(endpoint.findings));
   return td;
 }
@@ -218,7 +222,8 @@ function buildEndpointRow(endpoint: EndpointRecord, onSelect: SelectHandler): HT
   const methodCell = cell();
   methodCell.appendChild(methodBadge(endpoint.method));
 
-  const hostCell = cell("font-mono text-slate-500 dark:text-slate-400");
+  const hostCell = cell("truncate font-mono text-slate-500 dark:text-slate-400");
+  hostCell.title = endpoint.host;
   hostCell.textContent = endpoint.host;
 
   const seenCell = cell("text-slate-500 dark:text-slate-400 tabular-nums");
