@@ -13,6 +13,15 @@ export const INJECTED_MESSAGE_SOURCE = "apidiscovery" as const;
 
 export interface InjectedCaptureMessage {
   source: typeof INJECTED_MESSAGE_SOURCE;
+  /**
+   * Proves this message came from `injected.content.ts`, not from the page itself. Both scripts
+   * run in the same MAIN-world `window`, so `event.source === window` alone can't tell an
+   * injected-script message apart from the page calling `window.postMessage` directly -- without
+   * this, any site could plant fabricated capture entries in the dashboard. `content.ts` mints a
+   * fresh token per page load and only `injected.content.ts` ever gets to read it; see the
+   * handshake comments in both files.
+   */
+  token: string;
   payload: Omit<CapturedRequest, "id" | "tabId">;
 }
 
@@ -36,11 +45,30 @@ export type RuntimeMessage =
   | { type: "endpoint-updated"; key: string }
   | { type: "secrets-updated" };
 
-export function isInjectedCaptureMessage(data: unknown): data is InjectedCaptureMessage {
+function isCapturePayloadShape(value: unknown): value is Omit<CapturedRequest, "id" | "tabId"> {
+  if (typeof value !== "object" || value === null) return false;
+  const p = value as Record<string, unknown>;
   return (
-    typeof data === "object" &&
-    data !== null &&
-    "source" in data &&
-    (data as { source: unknown }).source === INJECTED_MESSAGE_SOURCE
+    typeof p["ts"] === "number" &&
+    typeof p["method"] === "string" &&
+    typeof p["url"] === "string" &&
+    typeof p["host"] === "string" &&
+    typeof p["path"] === "string" &&
+    typeof p["source"] === "string"
+  );
+}
+
+/** Validates both the anti-forgery token and the payload's shape before it's ever trusted. */
+export function isInjectedCaptureMessage(
+  data: unknown,
+  expectedToken: string,
+): data is InjectedCaptureMessage {
+  if (typeof data !== "object" || data === null) return false;
+  const candidate = data as Record<string, unknown>;
+  return (
+    candidate["source"] === INJECTED_MESSAGE_SOURCE &&
+    expectedToken.length > 0 &&
+    candidate["token"] === expectedToken &&
+    isCapturePayloadShape(candidate["payload"])
   );
 }
