@@ -30,6 +30,9 @@ export interface RepeaterResponse {
   headers: HeaderEntry[];
   body: string;
   timedMs: number;
+  /** The URL actually reached after following any redirects -- differs from the request URL when the server redirected. */
+  finalUrl: string;
+  redirected: boolean;
 }
 
 export interface RepeaterError {
@@ -143,6 +146,8 @@ async function performFetch(request: RepeaterRequest): Promise<RepeaterResponse 
       headers,
       body,
       timedMs: Math.round(performance.now() - started),
+      finalUrl: response.url,
+      redirected: response.redirected,
     };
   } catch (err) {
     return { error: err instanceof Error ? err.message : String(err) };
