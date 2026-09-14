@@ -268,7 +268,10 @@ function setUpToolbar(): void {
     void exportEndpointList();
   });
   els.clearAll.addEventListener("click", () => {
-    void clearAll().then(refresh);
+    void clearAll().then(() => {
+      els.detail.replaceChildren();
+      return refresh();
+    });
   });
 }
 
