@@ -110,22 +110,48 @@ function methodBadge(method: string): HTMLSpanElement {
 // ---------------------------------------------------------------------------
 
 /** Renders `text` into `container`, wrapping any occurrence of a term in `terms` in a `<mark>`. */
-function appendHighlighted(container: HTMLElement, text: string, terms: string[]): void {
+/**
+ * Wraps `term` in word-boundary assertions on whichever sides start/end on a word character.
+ * Without this, a short numeric ID like "1" (a very common {@link Finding.matchedValue}) would
+ * match as a plain substring inside "2026", "v1", or any other unrelated number/word, painting
+ * huge swaths of unrelated text yellow on a real, high-volume capture.
+ */
+function boundaryPattern(term: string): string {
+  const escaped = escapeRegExp(term);
+  const startsWithWordChar = /^\w/.test(term);
+  const endsWithWordChar = /\w$/.test(term);
+  return `${startsWithWordChar ? "\\b" : ""}${escaped}${endsWithWordChar ? "\\b" : ""}`;
+}
+
+export interface HighlightSegment {
+  text: string;
+  highlighted: boolean;
+}
+
+/**
+ * Splits `text` into segments, marking which ones exactly match a term in `terms` (word-boundary
+ * aware -- see {@link boundaryPattern}). Pure and DOM-free so the matching behavior itself is
+ * directly unit-testable without a browser.
+ */
+export function splitHighlightSegments(text: string, terms: string[]): HighlightSegment[] {
   const uniqueTerms = [...new Set(terms)].filter((t) => t.length > 0);
-  if (uniqueTerms.length === 0) {
-    container.appendChild(document.createTextNode(text));
-    return;
-  }
-  const pattern = new RegExp(`(${uniqueTerms.map(escapeRegExp).join("|")})`, "g");
-  const parts = text.split(pattern);
-  for (const part of parts) {
-    if (uniqueTerms.includes(part)) {
+  if (uniqueTerms.length === 0) return [{ text, highlighted: false }];
+  const pattern = new RegExp(`(${uniqueTerms.map(boundaryPattern).join("|")})`, "g");
+  return text
+    .split(pattern)
+    .filter((part) => part.length > 0)
+    .map((part) => ({ text: part, highlighted: uniqueTerms.includes(part) }));
+}
+
+function appendHighlighted(container: HTMLElement, text: string, terms: string[]): void {
+  for (const segment of splitHighlightSegments(text, terms)) {
+    if (segment.highlighted) {
       const mark = document.createElement("mark");
       mark.className = "rounded bg-mark px-0.5 font-semibold text-mark-ink";
-      mark.textContent = part;
+      mark.textContent = segment.text;
       container.appendChild(mark);
-    } else if (part.length > 0) {
-      container.appendChild(document.createTextNode(part));
+    } else {
+      container.appendChild(document.createTextNode(segment.text));
     }
   }
 }
@@ -391,6 +417,22 @@ function buildExchangeBlock(
   return section;
 }
 
+/**
+ * Shown instead of a request/response block when the endpoint has no stored sample -- e.g. it
+ * was only ever found by mining JavaScript, and the page itself never actually called it. Without
+ * this, clicking such a row looked exactly like clicking did nothing.
+ */
+function buildNoSampleNotice(endpoint: EndpointRecord): HTMLElement {
+  const box = document.createElement("div");
+  box.className =
+    "rounded-md border border-dashed border-slate-300 p-3 text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400";
+  const onlyMined = endpoint.sources.every((s) => s === "js-mined");
+  box.textContent = onlyMined
+    ? "No captured request/response yet -- this endpoint was found by scanning JavaScript, not by observing real traffic. Browse the site so it actually calls this endpoint, then reopen this row."
+    : "No request/response body was captured for this endpoint (metadata-only capture can't see bodies). Browse the site again with this endpoint active to capture a full example.";
+  return box;
+}
+
 function buildRequestResponseBlock(request: CapturedRequest): HTMLElement {
   const wrapper = document.createElement("div");
   wrapper.className = "space-y-2";
@@ -527,11 +569,18 @@ export function renderDetail(
   if (jwtSection !== null) container.appendChild(jwtSection);
 
   const sample = sampleRequests.at(-1);
-  if (sample !== undefined) container.appendChild(buildRequestResponseBlock(sample));
+  container.appendChild(
+    sample !== undefined ? buildRequestResponseBlock(sample) : buildNoSampleNotice(endpoint),
+  );
 
+  // Always bring the detail panel into view on selection, not just when a specific finding is
+  // focused -- otherwise, on a long endpoint list, clicking a row can silently update a detail
+  // panel that's off the bottom of the screen, which looks exactly like "nothing happened".
   if (focusRuleId !== undefined) {
     const focused = container.querySelector(`[data-rule-id="${focusRuleId}"]`);
     focused?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  } else {
+    container.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }
 }
 
