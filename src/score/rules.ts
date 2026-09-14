@@ -217,7 +217,9 @@ export const RULES: Rule[] = [
         ? {
             rationale:
               "Response allows any origin (Access-Control-Allow-Origin: *) while allowing credentials -- a critical CORS misconfiguration",
-            matchedValue: "*",
+            // The full phrase, not a bare "*" -- a single asterisk is too short/common a
+            // substring and would highlight unrelated text everywhere it happens to appear.
+            matchedValue: "Access-Control-Allow-Origin: *",
           }
         : null,
   },
